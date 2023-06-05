@@ -1,112 +1,73 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+use xcb::{x, Xid};
 
-use eframe::{egui, epaint::Pos2};
-use thiserror::Error;
-use xcb::*;
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-fn match_window(setup: &x::Setup, conn: &Connection, title: &str) -> Result<x::Window> {
-    let wm_client_list = conn.send_request(&x::InternAtom {
-        only_if_exists: true,
-        name: "_NET_CLIENT_LIST".as_bytes(),
-    });
-    let wm_client_list = conn.wait_for_reply(wm_client_list)?.atom();
-    assert!(wm_client_list != x::ATOM_NONE, "EWMH not supported");
-
-    for screen in setup.roots() {
-        let window = screen.root();
-
-        let pointer = conn.send_request(&x::QueryPointer { window });
-        let pointer = conn.wait_for_reply(pointer)?;
-
-        if pointer.same_screen() {
-            let list = conn.send_request(&x::GetProperty {
-                delete: false,
-                window,
-                property: wm_client_list,
-                r#type: x::ATOM_NONE,
-                long_offset: 0,
-                long_length: 100,
-            });
-            let list = conn.wait_for_reply(list)?;
-
-            for client in list.value::<x::Window>() {
-                let cookie = conn.send_request(&x::GetProperty {
-                    delete: false,
-                    window: *client,
-                    property: x::ATOM_WM_NAME,
-                    r#type: x::ATOM_STRING,
-                    long_offset: 0,
-                    long_length: 1024,
-                });
-                let reply = conn.wait_for_reply(cookie)?;
-                let reply_title = reply.value();
-                let reply_title = std::str::from_utf8(reply_title).expect("invalid UTF-8");
-
-                if reply_title == title {
-                    return Ok(*client);
-                }
-            }
-        }
+xcb::atoms_struct! {
+    #[derive(Debug)]
+    struct Atoms {
+        wm_protocols    => b"WM_PROTOCOLS",
+        wm_del_window   => b"WM_DELETE_WINDOW",
+        wm_state        => b"_NET_WM_STATE",
+        wm_state_maxv   => b"_NET_WM_STATE_MAXIMIZED_VERT",
+        wm_state_maxh   => b"_NET_WM_STATE_MAXIMIZED_HORZ",
+        wm_type         => b"_NET_WM_WINDOW_TYPE",
+        wm_type_dock    => b"_NET_WM_WINDOW_TYPE_DOCK",
     }
-
-    Err(Error::WindowNotFound)
 }
 
-fn main() -> Result<()> {
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
-    let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(320.0, 240.0)),
-        initial_window_pos: Some(Pos2::new(0., 0.)),
-        decorated: false,
-        ..Default::default()
-    };
-    let (conn, _) = xcb::Connection::connect(None).unwrap();
+/// The majority of `GlutinWindowContext` is taken from `eframe`
+
+fn main() -> xcb::Result<()> {
+    let (conn, screen_num) = xcb::Connection::connect(None).unwrap();
+
     let setup = conn.get_setup();
+    let screen = setup.roots().nth(screen_num as usize).unwrap();
 
-    println!(
-        "{:?}",
-        match_window(setup, &conn, "ves@nixos: ~/dev/pagbar")?
-    );
-    //let window = ewmh::proto::Window
+    let window: x::Window = conn.generate_id();
 
-    eframe::run_native(
-        "My egui App",
-        options,
-        Box::new(|_cc| Box::<MyApp>::default()),
-    )?;
-    Ok(())
-}
+    conn.send_request(&x::CreateWindow {
+        depth: x::COPY_FROM_PARENT as u8,
+        wid: window,
+        parent: screen.root(),
+        x: 0,
+        y: 0,
+        width: 1000,
+        height: 50,
+        border_width: 10,
+        class: x::WindowClass::InputOutput,
+        visual: screen.root_visual(),
+        value_list: &[
+            x::Cw::BackPixel(screen.white_pixel()),
+            x::Cw::EventMask(x::EventMask::EXPOSURE | x::EventMask::KEY_PRESS),
+        ],
+    });
 
-struct MyApp {
-    name: String,
-    age: u32,
-}
+    conn.send_request(&x::MapWindow { window });
 
-impl Default for MyApp {
-    fn default() -> Self {
-        Self {
-            name: "pagbar".to_owned(),
-            age: 42,
-        }
+    let title = "pagbar";
+
+    conn.send_request(&x::ChangeProperty {
+        mode: x::PropMode::Replace,
+        window,
+        property: x::ATOM_WM_NAME,
+        r#type: x::ATOM_STRING,
+        data: title.as_bytes(),
+    });
+
+    conn.flush()?;
+
+    // retrieve atoms
+    let atoms = Atoms::intern_all(&conn)?;
+
+    // SET WINDOW TYPE AS A DOCK
+    conn.send_and_check_request(&x::ChangeProperty {
+        mode: xcb::x::PropMode::Replace,
+        window,
+        property: atoms.wm_type,
+        r#type: xcb::x::ATOM_ATOM,
+        data: &[atoms.wm_type_dock],
+    })?;
+
+    #[allow(clippy::empty_loop)]
+    loop {
+        //application loop
     }
-}
-
-impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("my_panel").show(ctx, |ui| {
-            ui.heading("pagbar");
-        });
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("xcb")]
-    Xcb(#[from] xcb::Error),
-    #[error("eframe")]
-    Eframe(#[from] eframe::Error),
-    #[error("Window not found")]
-    WindowNotFound,
 }
