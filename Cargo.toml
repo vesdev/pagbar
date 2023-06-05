@@ -3,9 +3,10 @@ name = "pagbar"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-eframe = "0.21.3"
-egui = "0.21.0"
+anyhow = "1.0.71"
+eframe = { version = "0.22.0", features = ["glow"] }
 env_logger = "0.10.0"
+thiserror = "1.0.40"
+xcb = "1.2.1"
+xcb-wm = { version = "0.4.0", features = ["ewmh"] }
