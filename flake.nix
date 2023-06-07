@@ -19,11 +19,15 @@
         pkgs = import nixpkgs { inherit system; overlays = [ (import rust-overlay) ]; };
       in with pkgs; rec {
         devShell = mkShell rec {
+          nativeBuildInputs = [
+            pkg-config
+          ];
           buildInputs = [
             (rust-bin.stable.latest.default.override { extensions = [ "rust-src" "rust-analyzer" ]; })
             bashInteractive
             rust-bin.stable.latest.default
             rust-analyzer
+            
 
             libxkbcommon
             libGL
