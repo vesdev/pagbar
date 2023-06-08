@@ -2,9 +2,7 @@ use crate::backend::*;
 use crate::error::*;
 
 pub fn run(mut proto: Box<dyn Protocol>, monitor: usize, config: Config) -> Result<()> {
-    let monitors = proto.get_monitors().unwrap();
-    let monitor = &monitors[monitor];
-    proto.create_window(monitor, "pagbar".to_string(), config)?;
+    proto.run(monitor, "pagbar".to_string(), config)?;
 
     Ok(())
 }

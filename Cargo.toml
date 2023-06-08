@@ -4,14 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-as-raw-xcb-connection = "1.0.0"
 egui = "0.22.0"
-egui_glow = "0.22.0"
-env_logger = "0.10.0"
-gl = "0.14.0"
-#TODO: disable unecessary features
+egui-winit = "0.22.0"
+egui_glow = { version = "0.22.0", features = ["winit"] }
+glow = "0.12.2"
 glutin = "0.30.8"
+glutin-winit = "0.3.0"
+log = "0.4.18"
+raw-window-handle = "0.5.2"
 thiserror = "1.0.40"
-x11 = { version = "2.21.0", features = ["xlib", "glx"] }
-
-xcb = { version = "1.2.1", features = ["randr", "xlib_xcb", "glx"] }

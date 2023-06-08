@@ -4,11 +4,12 @@ mod error;
 
 fn main() {
     bar::run(
-        backend::Xcb::new().unwrap(),
+        backend::Xcb::new(),
         0,
         bar::Config {
             position: bar::Position::Bottom,
             thickness: 50,
         },
-    );
+    )
+    .unwrap();
 }

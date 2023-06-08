@@ -1,8 +1,17 @@
-use egui_winit::winit;
+//! Example how to use pure `egui_glow`.
+
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+#![allow(unsafe_code)]
+
+use egui_winit::winit::{
+    self,
+    platform::x11::{WindowBuilderExtX11, XWindowType},
+};
+use glow::Context;
 
 /// The majority of `GlutinWindowContext` is taken from `eframe`
-struct GlutinWindowContext {
-    window: winit::window::Window,
+pub struct GlutinWindowContext {
+    pub window: winit::window::Window,
     gl_context: glutin::context::PossiblyCurrentContext,
     gl_display: glutin::display::Display,
     gl_surface: glutin::surface::Surface<glutin::surface::WindowSurface>,
@@ -12,21 +21,27 @@ impl GlutinWindowContext {
     // refactor this function to use `glutin-winit` crate eventually.
     // preferably add android support at the same time.
     #[allow(unsafe_code)]
-    unsafe fn new(event_loop: &winit::event_loop::EventLoopWindowTarget<()>) -> Self {
+    unsafe fn new(
+        event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+    ) -> Self {
         use egui::NumExt;
         use glutin::context::NotCurrentGlContextSurfaceAccessor;
         use glutin::display::GetGlDisplay;
         use glutin::display::GlDisplay;
         use glutin::prelude::GlSurface;
         use raw_window_handle::HasRawWindowHandle;
+
         let winit_window_builder = winit::window::WindowBuilder::new()
             .with_resizable(true)
-            .with_inner_size(winit::dpi::LogicalSize {
-                width: 800.0,
-                height: 600.0,
-            })
+            .with_position(winit::dpi::PhysicalPosition::new(x, y))
+            .with_inner_size(winit::dpi::LogicalSize { width, height })
+            .with_x11_window_type(vec![winit::platform::x11::XWindowType::Dock])
             .with_title("egui_glow example") // Keep hidden until we've painted something. See https://github.com/emilk/egui/pull/2279
-            .with_visible(false);
+            .with_visible(true);
 
         let config_template_builder = glutin::config::ConfigTemplateBuilder::new()
             .prefer_hardware_accelerated(None)
@@ -137,15 +152,15 @@ impl GlutinWindowContext {
     }
 }
 
-fn main() {
+pub fn events(
+    gl_window: GlutinWindowContext,
+    gl: Context,
+    event_loop: winit::event_loop::EventLoop<()>,
+) {
     let mut clear_color = [0.1, 0.1, 0.1];
 
-    let event_loop = winit::event_loop::EventLoopBuilder::with_user_event().build();
-    let (gl_window, gl) = create_display(&event_loop);
     let gl = std::sync::Arc::new(gl);
-
     let mut egui_glow = egui_glow::EguiGlow::new(&event_loop, gl.clone(), None);
-
     event_loop.run(move |event, _, control_flow| {
         let mut redraw = || {
             let mut quit = false;
@@ -233,10 +248,15 @@ fn main() {
     });
 }
 
-fn create_display(
+pub fn create_display(
     event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
 ) -> (GlutinWindowContext, glow::Context) {
-    let glutin_window_context = unsafe { GlutinWindowContext::new(event_loop) };
+    let glutin_window_context =
+        unsafe { GlutinWindowContext::new(event_loop, x, y, width, height) };
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
             let s = std::ffi::CString::new(s)
