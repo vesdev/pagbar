@@ -3,14 +3,58 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(unsafe_code)]
 
-use egui_winit::winit::{
-    self,
-    platform::x11::{WindowBuilderExtX11, XWindowType},
-};
+use crate::bar::{Config, Position};
+use egui_winit::winit::{self, monitor::MonitorHandle, platform::x11::WindowBuilderExtX11};
 use glow::Context;
 
+pub fn run(config: Config) {
+    let event_loop = winit::event_loop::EventLoopBuilder::with_user_event().build();
+    let monitors: Vec<MonitorHandle> = event_loop.available_monitors().collect();
+    let monitor = monitors.get(config.monitor).unwrap_or_else(|| {
+        panic!(
+            "monitor {} out of range 0..{}",
+            config.monitor,
+            monitors.len() - 1
+        )
+    });
+    let (x, y, width, height) = match config.position {
+        Position::Left => (
+            monitor.position().x,
+            monitor.position().y,
+            config.thickness as u32,
+            monitor.size().height,
+        ),
+        Position::Right => (
+            monitor.position().x + monitor.size().width as i32 - config.thickness as i32,
+            monitor.position().y,
+            config.thickness as u32,
+            monitor.size().height,
+        ),
+        Position::Top => (
+            monitor.position().x,
+            monitor.position().y,
+            monitor.size().width,
+            config.thickness as u32,
+        ),
+        Position::Bottom => (
+            monitor.position().x,
+            monitor.position().y + monitor.size().height as i32 - config.thickness as i32,
+            monitor.size().width,
+            config.thickness as u32,
+        ),
+    };
+
+    // ??? SOME WEIRD THING WHERE MONITOR 0 is correct with physical size
+    // and other monitors work correctly with logical size
+    let use_physical = config.monitor == 0;
+
+    let (window, context) =
+        create_display(&event_loop, x, y, width, height, config.title, use_physical);
+    events(window, context, event_loop);
+}
+
 /// The majority of `GlutinWindowContext` is taken from `eframe`
-pub struct GlutinWindowContext {
+struct GlutinWindowContext {
     pub window: winit::window::Window,
     gl_context: glutin::context::PossiblyCurrentContext,
     gl_display: glutin::display::Display,
@@ -27,6 +71,8 @@ impl GlutinWindowContext {
         y: i32,
         width: u32,
         height: u32,
+        title: String,
+        phyiscal_size: bool,
     ) -> Self {
         use egui::NumExt;
         use glutin::context::NotCurrentGlContextSurfaceAccessor;
@@ -36,15 +82,21 @@ impl GlutinWindowContext {
         use raw_window_handle::HasRawWindowHandle;
 
         let winit_window_builder = winit::window::WindowBuilder::new()
-            .with_resizable(true)
+            .with_resizable(false)
             .with_position(winit::dpi::PhysicalPosition::new(x, y))
-            .with_inner_size(winit::dpi::LogicalSize { width, height })
             .with_x11_window_type(vec![winit::platform::x11::XWindowType::Dock])
-            .with_title("egui_glow example") // Keep hidden until we've painted something. See https://github.com/emilk/egui/pull/2279
-            .with_visible(true);
+            .with_maximized(true)
+            .with_title(title) // Keep hidden until we've painted something. See https://github.com/emilk/egui/pull/2279
+            .with_visible(false);
+
+        let winit_window_builder = if phyiscal_size {
+            winit_window_builder.with_inner_size(winit::dpi::PhysicalSize { width, height })
+        } else {
+            winit_window_builder.with_inner_size(winit::dpi::LogicalSize { width, height })
+        };
 
         let config_template_builder = glutin::config::ConfigTemplateBuilder::new()
-            .prefer_hardware_accelerated(None)
+            .prefer_hardware_accelerated(Some(true))
             .with_depth_size(0)
             .with_stencil_size(0)
             .with_transparency(false);
@@ -152,7 +204,7 @@ impl GlutinWindowContext {
     }
 }
 
-pub fn events(
+fn events(
     gl_window: GlutinWindowContext,
     gl: Context,
     event_loop: winit::event_loop::EventLoop<()>,
@@ -166,12 +218,13 @@ pub fn events(
             let mut quit = false;
 
             let repaint_after = egui_glow.run(gl_window.window(), |egui_ctx| {
-                egui::SidePanel::left("my_side_panel").show(egui_ctx, |ui| {
-                    ui.heading("Hello World!");
-                    if ui.button("Quit").clicked() {
-                        quit = true;
-                    }
-                    ui.color_edit_button_rgb(&mut clear_color);
+                egui::CentralPanel::default().show(egui_ctx, |ui| {
+                    egui_ctx.set_pixels_per_point(2.);
+                    ui.centered_and_justified(|ui| {
+                        ui.heading(
+                            "Paaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaag",
+                        );
+                    });
                 });
             });
 
@@ -248,15 +301,17 @@ pub fn events(
     });
 }
 
-pub fn create_display(
+fn create_display(
     event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
     x: i32,
     y: i32,
     width: u32,
     height: u32,
+    title: String,
+    physical_size: bool,
 ) -> (GlutinWindowContext, glow::Context) {
     let glutin_window_context =
-        unsafe { GlutinWindowContext::new(event_loop, x, y, width, height) };
+        unsafe { GlutinWindowContext::new(event_loop, x, y, width, height, title, physical_size) };
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
             let s = std::ffi::CString::new(s)

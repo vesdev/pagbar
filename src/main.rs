@@ -1,15 +1,12 @@
 mod backend;
 mod bar;
-mod error;
 
 fn main() {
-    bar::run(
-        backend::Xcb::new(),
-        0,
-        bar::Config {
-            position: bar::Position::Bottom,
-            thickness: 50,
-        },
-    )
-    .unwrap();
+    bar::run(bar::Config {
+        protocol: bar::Protocol::X11,
+        title: "pagbar".to_string(),
+        monitor: 0,
+        position: bar::Position::Top,
+        thickness: 100,
+    })
 }

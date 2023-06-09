@@ -1,10 +1,9 @@
-use crate::backend::*;
-use crate::error::*;
+use crate::backend::{self, *};
 
-pub fn run(mut proto: Box<dyn Protocol>, monitor: usize, config: Config) -> Result<()> {
-    proto.run(monitor, "pagbar".to_string(), config)?;
-
-    Ok(())
+pub fn run(config: Config) {
+    match config.protocol {
+        Protocol::X11 => backend::x11::run(config),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -17,13 +16,14 @@ pub enum Position {
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    pub protocol: Protocol,
+    pub title: String,
+    pub monitor: usize,
     pub position: Position,
     pub thickness: u16,
 }
 
-pub struct Monitor {
-    pub x: i16,
-    pub y: i16,
-    pub width: u16,
-    pub height: u16,
+#[derive(Debug, Clone)]
+pub enum Protocol {
+    X11,
 }
