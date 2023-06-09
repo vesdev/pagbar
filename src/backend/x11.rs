@@ -3,11 +3,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(unsafe_code)]
 
-use crate::bar::{Config, Position};
+use std::time::Duration;
+
+use crate::bar::{Bar, Config, Position};
 use egui_winit::winit::{self, monitor::MonitorHandle, platform::x11::WindowBuilderExtX11};
 use glow::Context;
 
-pub fn run(config: Config) {
+pub fn run(config: Config, bar: Box<dyn Bar>) {
     let event_loop = winit::event_loop::EventLoopBuilder::with_user_event().build();
     let monitors: Vec<MonitorHandle> = event_loop.available_monitors().collect();
     let monitor = monitors.get(config.monitor).unwrap_or_else(|| {
@@ -48,9 +50,16 @@ pub fn run(config: Config) {
     // and other monitors work correctly with logical size
     let use_physical = config.monitor == 0;
 
-    let (window, context) =
-        create_display(&event_loop, x, y, width, height, config.title, use_physical);
-    events(window, context, event_loop);
+    let (window, context) = create_display(
+        &event_loop,
+        x,
+        y,
+        width,
+        height,
+        config.title.clone(),
+        use_physical,
+    );
+    events(window, context, event_loop, bar, config);
 }
 
 /// The majority of `GlutinWindowContext` is taken from `eframe`
@@ -147,6 +156,7 @@ impl GlutinWindowContext {
             glutin_winit::finalize_window(event_loop, winit_window_builder.clone(), &gl_config)
                 .expect("failed to finalize glutin window")
         });
+
         let (width, height): (u32, u32) = window.inner_size().into();
         let width = std::num::NonZeroU32::new(width.at_least(1)).unwrap();
         let height = std::num::NonZeroU32::new(height.at_least(1)).unwrap();
@@ -208,24 +218,25 @@ fn events(
     gl_window: GlutinWindowContext,
     gl: Context,
     event_loop: winit::event_loop::EventLoop<()>,
+    mut bar: Box<dyn Bar>,
+    config: Config,
 ) {
-    let mut clear_color = [0.1, 0.1, 0.1];
-
     let gl = std::sync::Arc::new(gl);
     let mut egui_glow = egui_glow::EguiGlow::new(&event_loop, gl.clone(), None);
+
+    let clear_color = (
+        config.bg_color.r as f32 / 255.,
+        config.bg_color.g as f32 / 255.,
+        config.bg_color.b as f32 / 255.,
+    );
+    let visuals: egui::Visuals = config.into();
     event_loop.run(move |event, _, control_flow| {
         let mut redraw = || {
             let mut quit = false;
 
-            let repaint_after = egui_glow.run(gl_window.window(), |egui_ctx| {
-                egui::CentralPanel::default().show(egui_ctx, |ui| {
-                    egui_ctx.set_pixels_per_point(2.);
-                    ui.centered_and_justified(|ui| {
-                        ui.heading(
-                            "Paaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaag",
-                        );
-                    });
-                });
+            let repaint_after = egui_glow.run(gl_window.window(), |ctx| {
+                ctx.set_visuals(visuals.clone());
+                bar.update(ctx);
             });
 
             *control_flow = if quit {
@@ -234,7 +245,8 @@ fn events(
                 gl_window.window().request_redraw();
                 winit::event_loop::ControlFlow::Poll
             } else if let Some(repaint_after_instant) =
-                std::time::Instant::now().checked_add(repaint_after)
+                std::time::Instant::now().checked_add(Duration::from_secs(1))
+            //tick rate
             {
                 winit::event_loop::ControlFlow::WaitUntil(repaint_after_instant)
             } else {
@@ -244,7 +256,7 @@ fn events(
             {
                 unsafe {
                     use glow::HasContext as _;
-                    gl.clear_color(clear_color[0], clear_color[1], clear_color[2], 1.0);
+                    gl.clear_color(clear_color.0, clear_color.1, clear_color.2, 1.0);
                     gl.clear(glow::COLOR_BUFFER_BIT);
                 }
 
