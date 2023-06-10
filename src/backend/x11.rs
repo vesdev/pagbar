@@ -232,7 +232,7 @@ fn events(
     let visuals: egui::Visuals = options.into();
     event_loop.run(move |event, _, control_flow| {
         let mut redraw = || {
-            let mut quit = false;
+            let quit = false;
 
             let repaint_after = egui_glow.run(gl_window.window(), |ctx| {
                 ctx.set_visuals(visuals.clone());

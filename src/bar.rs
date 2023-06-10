@@ -1,7 +1,6 @@
-use egui::{style::WidgetVisuals, Color32};
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use crate::backend::{self, *};
+use crate::backend::{self};
 
 pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
     match options.protocol {

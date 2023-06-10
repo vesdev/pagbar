@@ -1,9 +1,9 @@
-use bar::{Bar, BarOptions, Color, Position};
-use clap::{Args, Parser};
+use bar::{Bar, Color};
+use clap::Parser;
 use config::Config;
-use serde::{Deserialize, Serialize};
+
 use sysinfo::{DiskExt, SystemExt};
-use toml::Table;
+
 mod backend;
 mod bar;
 mod config;
@@ -19,7 +19,7 @@ fn main() {
 
     let config = if let Some(config_path) = args.config {
         let config =
-            toml::from_str::<Config>(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+            toml::from_str::<Config>(&std::fs::read_to_string(config_path).unwrap()).unwrap();
         bar::BarOptions {
             protocol: bar::Protocol::X11,
             title: config.title.unwrap_or("pagbar".into()),
