@@ -1,8 +1,15 @@
 - [x] abstact egui app
 - [x] theme config
-- [ ] config files
+    - [x] config files
+        - [x] hex colors 
+
+- [] default to primary monitor
+
+util:
 - [x] clock
-- [ ] default to primary monitor
 - [ ] system tray
 - [ ] workspace numbers
-- [ ] look into pluginsf
+
+
+other:
+- [ ] look into plugins

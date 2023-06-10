@@ -1,26 +1,59 @@
-use bar::{Bar, Color};
+use bar::{Bar, BarOptions, Color, Position};
+use clap::{Args, Parser};
+use config::Config;
+use serde::{Deserialize, Serialize};
 use sysinfo::{DiskExt, SystemExt};
-
+use toml::Table;
 mod backend;
 mod bar;
+mod config;
+
+#[derive(Parser)]
+struct Cli {
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<std::path::PathBuf>,
+}
 
 fn main() {
-    let config = bar::Config {
-        protocol: bar::Protocol::X11,
-        title: "pagbar".to_string(),
-        monitor: 0,
-        position: bar::Position::Bottom,
-        thickness: 100,
-        bg_color: Color {
-            r: 28,
-            g: 30,
-            b: 38,
-        },
-        text_color: Color {
-            r: 228,
-            g: 168,
-            b: 138,
-        },
+    let args = Cli::parse();
+
+    let config = if let Some(config_path) = args.config {
+        let config =
+            toml::from_str::<Config>(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        bar::BarOptions {
+            protocol: bar::Protocol::X11,
+            title: config.title.unwrap_or("pagbar".into()),
+            monitor: config.monitor.unwrap_or(0),
+            position: config.position.unwrap_or(bar::Position::Bottom),
+            size: config.size.unwrap_or(50),
+            bg_color: config
+                .colors
+                .background
+                .unwrap_or(Color { r: 0, g: 0, b: 0 }),
+            text_color: config.colors.text.unwrap_or(Color {
+                r: 255,
+                g: 255,
+                b: 255,
+            }),
+        }
+    } else {
+        bar::BarOptions {
+            protocol: bar::Protocol::X11,
+            title: "pagbar".to_string(),
+            monitor: 0,
+            position: bar::Position::Bottom,
+            size: 100,
+            bg_color: Color {
+                r: 28,
+                g: 30,
+                b: 38,
+            },
+            text_color: Color {
+                r: 228,
+                g: 168,
+                b: 138,
+            },
+        }
     };
     bar::run(config, Box::<PagBar>::default())
 }

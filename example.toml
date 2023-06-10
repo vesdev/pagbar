@@ -1,0 +1,7 @@
+monitor = 0
+position = "bottom"
+size = 200
+
+[colors]
+background = "#000000"
+text = "#ffffff"

@@ -5,50 +5,50 @@
 
 use std::time::Duration;
 
-use crate::bar::{Bar, Config, Position};
+use crate::bar::{Bar, BarOptions, Position};
 use egui_winit::winit::{self, monitor::MonitorHandle, platform::x11::WindowBuilderExtX11};
 use glow::Context;
 
-pub fn run(config: Config, bar: Box<dyn Bar>) {
+pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
     let event_loop = winit::event_loop::EventLoopBuilder::with_user_event().build();
     let monitors: Vec<MonitorHandle> = event_loop.available_monitors().collect();
-    let monitor = monitors.get(config.monitor).unwrap_or_else(|| {
+    let monitor = monitors.get(options.monitor).unwrap_or_else(|| {
         panic!(
             "monitor {} out of range 0..{}",
-            config.monitor,
+            options.monitor,
             monitors.len() - 1
         )
     });
-    let (x, y, width, height) = match config.position {
+    let (x, y, width, height) = match options.position {
         Position::Left => (
             monitor.position().x,
             monitor.position().y,
-            config.thickness as u32,
+            options.size as u32,
             monitor.size().height,
         ),
         Position::Right => (
-            monitor.position().x + monitor.size().width as i32 - config.thickness as i32,
+            monitor.position().x + monitor.size().width as i32 - options.size as i32,
             monitor.position().y,
-            config.thickness as u32,
+            options.size as u32,
             monitor.size().height,
         ),
         Position::Top => (
             monitor.position().x,
             monitor.position().y,
             monitor.size().width,
-            config.thickness as u32,
+            options.size as u32,
         ),
         Position::Bottom => (
             monitor.position().x,
-            monitor.position().y + monitor.size().height as i32 - config.thickness as i32,
+            monitor.position().y + monitor.size().height as i32 - options.size as i32,
             monitor.size().width,
-            config.thickness as u32,
+            options.size as u32,
         ),
     };
 
     // ??? SOME WEIRD THING WHERE MONITOR 0 is correct with physical size
     // and other monitors work correctly with logical size
-    let use_physical = config.monitor == 0;
+    let use_physical = options.monitor == 0;
 
     let (window, context) = create_display(
         &event_loop,
@@ -56,10 +56,10 @@ pub fn run(config: Config, bar: Box<dyn Bar>) {
         y,
         width,
         height,
-        config.title.clone(),
+        options.title.clone(),
         use_physical,
     );
-    events(window, context, event_loop, bar, config);
+    events(window, context, event_loop, bar, options);
 }
 
 /// The majority of `GlutinWindowContext` is taken from `eframe`
@@ -219,17 +219,17 @@ fn events(
     gl: Context,
     event_loop: winit::event_loop::EventLoop<()>,
     mut bar: Box<dyn Bar>,
-    config: Config,
+    options: BarOptions,
 ) {
     let gl = std::sync::Arc::new(gl);
     let mut egui_glow = egui_glow::EguiGlow::new(&event_loop, gl.clone(), None);
 
     let clear_color = (
-        config.bg_color.r as f32 / 255.,
-        config.bg_color.g as f32 / 255.,
-        config.bg_color.b as f32 / 255.,
+        options.bg_color.r as f32 / 255.,
+        options.bg_color.g as f32 / 255.,
+        options.bg_color.b as f32 / 255.,
     );
-    let visuals: egui::Visuals = config.into();
+    let visuals: egui::Visuals = options.into();
     event_loop.run(move |event, _, control_flow| {
         let mut redraw = || {
             let mut quit = false;
