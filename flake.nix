@@ -38,7 +38,7 @@
           buildInputs = [
             libGL
             libxkbcommon
-            wayland
+            # wayland
             xorg.libX11
             xorg.libXcursor
             xorg.libXi
