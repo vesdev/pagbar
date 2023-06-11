@@ -6,6 +6,10 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     naersk.url = "github:nix-community/naersk";
+    flake-compat = {
+      url = github:edolstra/flake-compat;
+      flake = false;
+    };
   };
 
   outputs = {
@@ -34,8 +38,12 @@
           xorg.libXi
           xorg.libXrandr
         ];
-        # cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-        pagbar = with pkgs; naersk-lib.buildPackage{
+
+      LD_LIBRARY_PATH = libPath;
+
+      in {
+ 
+        defaultPackage = with pkgs; naersk-lib.buildPackage{
           src = ./.;
           doCheck = true;
           pname = "pagbar";
@@ -44,7 +52,7 @@
             pkg-config 
             pkgs.makeWrapper 
           ];
-          
+
           buildInputs = with pkgs; [
             xorg.libxcb
           ];
@@ -55,11 +63,9 @@
           
         };
 
-      LD_LIBRARY_PATH = libPath;
-
-      in {
- 
-        packages.default = pagbar;
+        defaultApp = flake-utils.lib.mkApp {
+          drv = self.defaultPackage."${system}";
+        };
 
         devShells.default = with pkgs; mkShell rec {
           nativeBuildInputs = [
