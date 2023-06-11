@@ -80,5 +80,9 @@
 
           LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
         };
+
+        overlay = final: prev: {
+          pagbar = self.packages.${final.system}.pagbar;
+        };
       });
 }
