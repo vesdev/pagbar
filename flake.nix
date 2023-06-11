@@ -5,10 +5,9 @@
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
-    naersk.url = "github:nix-community/naersk";
-    flake-compat = {
-      url = github:edolstra/flake-compat;
-      flake = false;
+    crane = {
+      url = "github:ipetkov/crane";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -17,57 +16,45 @@
     nixpkgs,
     flake-utils,
     rust-overlay,
-    naersk,
+    crane,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system:
-    let
+      let
         pkgs = import nixpkgs {
           inherit system;
           overlays = [ (import rust-overlay) ];
         };
 
-        naersk-lib = pkgs.callPackage naersk { };
+        craneLib = crane.lib.${system};
 
-        libPath = with pkgs; lib.makeLibraryPath [
-          libGL
-          libxkbcommon
-          wayland
-          xorg.libX11
-          xorg.libXcursor
-          xorg.libXi
-          xorg.libXrandr
-        ];
+      in with pkgs;{
 
-      LD_LIBRARY_PATH = libPath;
-
-      in {
- 
-        defaultPackage = with pkgs; naersk-lib.buildPackage{
-          src = ./.;
+        packages.default = craneLib.buildPackage rec {
+          src = craneLib.cleanCargoSource (craneLib.path ./.);
           doCheck = true;
-          pname = "pagbar";
+          buildInputs = [
+            libGL
+            libxkbcommon
+            wayland
+            xorg.libX11
+            xorg.libXcursor
+            xorg.libXi
+            xorg.libXrandr
+          ];
 
-          nativeBuildInputs = [ 
-            pkg-config 
+          nativeBuildInputs = [
+            pkg-config
             pkgs.makeWrapper 
           ];
 
-          buildInputs = with pkgs; [
-            xorg.libxcb
-          ];
-
           postInstall = ''
-            wrapProgram "$out/bin/pagbar" --prefix LD_LIBRARY_PATH : "${libPath}"
+            wrapProgram "$out/bin/pagbar" --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath buildInputs}"
           '';
-          
+          LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
         };
 
-        defaultApp = flake-utils.lib.mkApp {
-          drv = self.defaultPackage."${system}";
-        };
-
-        devShells.default = with pkgs; mkShell rec {
+        devShells.default = mkShell rec {
           nativeBuildInputs = [
             pkg-config
           ];
@@ -91,7 +78,7 @@
             xorg.libX11
           ];
 
-          LD_LIBRARY_PATH = lib.makeLibraryPath commonArgs.buildInputs;
+          LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
         };
       });
 }
