@@ -1,12 +1,11 @@
 {
-  description = "alo";
+  description = "pagbar";
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
-    crane.url = "github:ipetkov/crane";
-    crane.inputs.nixpkgs.follows = "nixpkgs";
+    naersk.url = "github:nix-community/naersk";
   };
 
   outputs = {
@@ -14,31 +13,55 @@
     nixpkgs,
     flake-utils,
     rust-overlay,
-    crane,
+    naersk,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; overlays = [ (import rust-overlay) ]; };
-        craneLib = crane.lib.${system};
-      in with pkgs; rec {
-        packages.default = craneLib.buildPackage {
-           src = craneLib.cleanCargoSource (craneLib.path ./.);
-           nativeBuildInputs = [
-            pkg-config
-          ];
-          buildInputs = [
-            rust-bin.stable.latest.default
-            libxkbcommon
-            libGL
-            xorg.libXcursor
-            xorg.libXrandr
-            xorg.libXi
-            xorg.libX11
-          ];
+    let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
         };
 
-        devShell = mkShell rec {
+        naersk-lib = pkgs.callPackage naersk { };
+
+        libPath = with pkgs; lib.makeLibraryPath [
+          libGL
+          libxkbcommon
+          wayland
+          xorg.libX11
+          xorg.libXcursor
+          xorg.libXi
+          xorg.libXrandr
+        ];
+        # cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+        pagbar = with pkgs; naersk-lib.buildPackage{
+          src = ./.;
+          doCheck = true;
+          pname = "pagbar";
+
+          nativeBuildInputs = [ 
+            pkg-config 
+            pkgs.makeWrapper 
+          ];
+          
+          buildInputs = with pkgs; [
+            xorg.libxcb
+          ];
+
+          postInstall = ''
+            wrapProgram "$out/bin/pagbar" --prefix LD_LIBRARY_PATH : "${libPath}"
+          '';
+          
+        };
+
+      LD_LIBRARY_PATH = libPath;
+
+      in {
+ 
+        packages.default = pagbar;
+
+        devShells.default = with pkgs; mkShell rec {
           nativeBuildInputs = [
             pkg-config
           ];
@@ -62,7 +85,7 @@
             xorg.libX11
           ];
 
-          LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
+          LD_LIBRARY_PATH = lib.makeLibraryPath commonArgs.buildInputs;
         };
       });
 }
