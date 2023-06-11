@@ -14,7 +14,7 @@
     nixpkgs,
     flake-utils,
     rust-overlay,
-    crane
+    crane,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system:
