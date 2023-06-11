@@ -54,6 +54,13 @@
           LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
         };
 
+        apps = {
+          pagbar = flake-utils.lib.mkApp {
+            drv = packages.pagbar;
+          };
+          default = apps.pagbar;
+        };
+
         devShells.default = mkShell rec {
           nativeBuildInputs = [
             pkg-config
