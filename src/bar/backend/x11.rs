@@ -3,22 +3,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(unsafe_code)]
 
-use std::time::Duration;
-
-use crate::bar::{Bar, BarOptions, Position};
+use crate::bar::{self, Bar, BarOptions, Position};
 use egui_winit::winit::{self, monitor::MonitorHandle, platform::x11::WindowBuilderExtX11};
 use glow::Context;
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
     let event_loop = winit::event_loop::EventLoopBuilder::with_user_event().build();
     let monitors: Vec<MonitorHandle> = event_loop.available_monitors().collect();
-    let monitor = monitors.get(options.monitor).unwrap_or_else(|| {
-        panic!(
-            "monitor {} out of range 0..{}",
-            options.monitor,
-            monitors.len() - 1
-        )
-    });
+
+    let monitor = event_loop
+        .primary_monitor()
+        .unwrap_or_else(|| panic!("No monitors found"));
+
     let (x, y, width, height) = match options.position {
         Position::Left => (
             monitor.position().x,
@@ -46,19 +43,7 @@ pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
         ),
     };
 
-    // ??? SOME WEIRD THING WHERE MONITOR 0 is correct with physical size
-    // and other monitors work correctly with logical size
-    let use_physical = options.monitor == 0;
-
-    let (window, context) = create_display(
-        &event_loop,
-        x,
-        y,
-        width,
-        height,
-        options.title.clone(),
-        use_physical,
-    );
+    let (window, context) = create_display(&event_loop, x, y, width, height, options.title.clone());
     events(window, context, event_loop, bar, options);
 }
 
@@ -81,7 +66,6 @@ impl GlutinWindowContext {
         width: u32,
         height: u32,
         title: String,
-        phyiscal_size: bool,
     ) -> Self {
         use egui::NumExt;
         use glutin::context::NotCurrentGlContextSurfaceAccessor;
@@ -89,20 +73,15 @@ impl GlutinWindowContext {
         use glutin::display::GlDisplay;
         use glutin::prelude::GlSurface;
         use raw_window_handle::HasRawWindowHandle;
-
+        //let zero_monitor = event_loop.available_monitors().nth(0);
         let winit_window_builder = winit::window::WindowBuilder::new()
-            .with_resizable(false)
+            .with_resizable(true)
+            .with_override_redirect(false)
             .with_position(winit::dpi::PhysicalPosition::new(x, y))
+            .with_inner_size(winit::dpi::PhysicalSize { width, height })
             .with_x11_window_type(vec![winit::platform::x11::XWindowType::Dock])
-            .with_maximized(true)
             .with_title(title) // Keep hidden until we've painted something. See https://github.com/emilk/egui/pull/2279
             .with_visible(false);
-
-        let winit_window_builder = if phyiscal_size {
-            winit_window_builder.with_inner_size(winit::dpi::PhysicalSize { width, height })
-        } else {
-            winit_window_builder.with_inner_size(winit::dpi::LogicalSize { width, height })
-        };
 
         let config_template_builder = glutin::config::ConfigTemplateBuilder::new()
             .prefer_hardware_accelerated(Some(true))
@@ -229,14 +208,13 @@ fn events(
         options.bg_color.g as f32 / 255.,
         options.bg_color.b as f32 / 255.,
     );
-    let visuals: egui::Visuals = options.into();
+
     event_loop.run(move |event, _, control_flow| {
         let mut redraw = || {
             let quit = false;
 
             let repaint_after = egui_glow.run(gl_window.window(), |ctx| {
-                ctx.set_visuals(visuals.clone());
-                bar.update(ctx);
+                bar::display_bar(&mut bar, ctx, &options)
             });
 
             *control_flow = if quit {
@@ -245,7 +223,7 @@ fn events(
                 gl_window.window().request_redraw();
                 winit::event_loop::ControlFlow::Poll
             } else if let Some(repaint_after_instant) =
-                std::time::Instant::now().checked_add(Duration::from_secs(1))
+                std::time::Instant::now().checked_add(repaint_after)
             //tick rate
             {
                 winit::event_loop::ControlFlow::WaitUntil(repaint_after_instant)
@@ -320,10 +298,9 @@ fn create_display(
     width: u32,
     height: u32,
     title: String,
-    physical_size: bool,
 ) -> (GlutinWindowContext, glow::Context) {
     let glutin_window_context =
-        unsafe { GlutinWindowContext::new(event_loop, x, y, width, height, title, physical_size) };
+        unsafe { GlutinWindowContext::new(event_loop, x, y, width, height, title) };
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
             let s = std::ffi::CString::new(s)

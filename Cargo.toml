@@ -21,3 +21,4 @@ thiserror = "1.0.40"
 clap = { version = "4.3.3", features = ["derive"] }
 toml = "0.7.4"
 serde = { version = "1.0.164", features = ["derive"] }
+xdg = "2.5.0"

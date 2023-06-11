@@ -1,6 +1,6 @@
+use egui::{Context, Ui};
 use serde::{de::Visitor, Deserialize, Serialize};
-
-use crate::backend::{self};
+mod backend;
 
 pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
     match options.protocol {
@@ -9,10 +9,45 @@ pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
 }
 
 pub trait Bar {
-    fn update(&mut self, ctx: &egui::Context);
+    fn first(&mut self, ctx: &egui::Context, ui: &mut Ui);
+    fn middle(&mut self, ctx: &egui::Context, ui: &mut Ui);
+    fn last(&mut self, ctx: &egui::Context, ui: &mut Ui);
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+fn display_bar(bar: &mut Box<dyn Bar>, ctx: &Context, options: &BarOptions) {
+    let visuals: egui::Visuals = options.clone().into();
+    ctx.set_visuals(visuals);
+
+    if matches!(&options.position, Position::Bottom | Position::Top) {
+        egui::SidePanel::left("first")
+            .resizable(false)
+            .min_width(300.)
+            .show_separator_line(false)
+            .show(ctx, |ui| bar.first(ctx, ui));
+
+        egui::SidePanel::right("last")
+            .resizable(false)
+            .min_width(300.)
+            .show_separator_line(false)
+            .show(ctx, |ui| bar.last(ctx, ui));
+    } else {
+        egui::TopBottomPanel::top("first")
+            .resizable(false)
+            .min_height(200.)
+            .show_separator_line(false)
+            .show(ctx, |ui| bar.first(ctx, ui));
+
+        egui::TopBottomPanel::bottom("last")
+            .resizable(false)
+            .min_height(200.)
+            .show_separator_line(false)
+            .show(ctx, |ui| bar.last(ctx, ui));
+    }
+
+    egui::CentralPanel::default().show(ctx, |ui| bar.middle(ctx, ui));
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(rename_all = "lowercase")]
 pub enum Position {
     Left,
@@ -21,11 +56,20 @@ pub enum Position {
     Bottom,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+}
+
+impl Serialize for Color {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!("#{:02X}{:02X}{:02X}", self.r, self.g, self.b))
+    }
 }
 
 impl<'de> Deserialize<'de> for Color {
@@ -68,7 +112,6 @@ impl<'de> Visitor<'de> for ColorVisitor {
 pub struct BarOptions {
     pub protocol: Protocol,
     pub title: String,
-    pub monitor: usize,
     pub position: Position,
     pub size: u16,
     pub bg_color: Color,
@@ -104,6 +147,7 @@ impl From<BarOptions> for egui::Visuals {
                 value.text_color.g,
                 value.text_color.b,
             )),
+
             ..Default::default()
         }
     }

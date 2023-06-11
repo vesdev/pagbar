@@ -33,7 +33,7 @@
             libGL
 
             # WINIT_UNIX_BACKEND=wayland
-            wayland
+            # wayland
 
             # WINIT_UNIX_BACKEND=x11
             xorg.libXcursor

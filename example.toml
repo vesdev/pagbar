@@ -1,6 +1,6 @@
 monitor = 0
 position = "bottom"
-size = 200
+size = 70
 
 [colors]
 background = "#000000"
