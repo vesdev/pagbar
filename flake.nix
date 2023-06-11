@@ -27,10 +27,8 @@
         };
 
         craneLib = crane.lib.${system};
-
-      in with pkgs;{
-
-        packages.default = craneLib.buildPackage rec {
+      
+        pagbar = with pkgs; craneLib.buildPackage rec {
           src = craneLib.cleanCargoSource (craneLib.path ./.);
           doCheck = true;
           buildInputs = [
@@ -54,11 +52,12 @@
           LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
         };
 
-        apps = {
-          pagbar = flake-utils.lib.mkApp {
-            drv = packages.pagbar;
-          };
-          default = apps.pagbar;
+      in with pkgs;{
+
+        packages.default = pagbar;
+
+        apps.default = flake-utils.lib.mkApp {
+          drv = pagbar;
         };
 
         devShells.default = mkShell rec {
@@ -86,10 +85,6 @@
           ];
 
           LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
-        };
-
-        overlay = final: prev: {
-          pagbar = self.packages.${final.system}.pagbar;
         };
       });
 }
