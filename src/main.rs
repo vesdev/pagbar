@@ -50,7 +50,7 @@ impl Bar for PagBar {
             let disk_use = (1. - disk.available_space() as f64 / disk.total_space() as f64) * 100.;
             let memory_use = self.sys.used_memory() as f64 / self.sys.total_memory() as f64 * 100.;
 
-            ui.heading(format!("disk {disk_use:.0}% / ram {memory_use:.0}%"));
+            ui.heading(format!("/ disk {disk_use:.0}% / ram {memory_use:.0}%"));
         });
     }
 
