@@ -1,7 +1,8 @@
 monitor = 0
-position = "bottom"
-size = 70
+position = "right"
+size = 60
 
 [colors]
 background = "#000000"
-text = "#ffffff"
+text = "#ff2255"
+text-secondary = "#888888"
