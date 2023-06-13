@@ -4,7 +4,7 @@
 #![allow(unsafe_code)]
 
 use crate::bar::{self, Bar, BarOptions, Position};
-use egui_winit::winit::{self, monitor::MonitorHandle, platform::x11::WindowBuilderExtX11};
+use egui_winit::winit::{self, platform::x11::WindowBuilderExtX11};
 use glow::Context;
 
 pub fn run(options: BarOptions, bar: Box<dyn Bar>) {

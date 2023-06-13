@@ -1,11 +1,11 @@
 use std::time::Duration;
-use systemstat::{saturating_sub_bytes, Platform, System};
+use systemstat::{Platform};
 
 use bar::{Bar, BarOptions};
 
-use chrono::Timelike;
+
 use clap::Parser;
-use egui::{Color32, RichText, Ui};
+use egui::{RichText, Ui};
 
 mod bar;
 mod config;
@@ -44,7 +44,7 @@ impl Default for PagBar {
 }
 
 impl Bar for PagBar {
-    fn last(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui) {
+    fn last(&mut self, options: &BarOptions, _ctx: &egui::Context, ui: &mut Ui) {
         ui.horizontal_centered(|ui| {
             let memory = match self.sys.memory() {
                 Ok(mem) => (1. - mem.free.as_u64() as f64 / mem.total.as_u64() as f64) * 100.,
@@ -68,7 +68,7 @@ impl Bar for PagBar {
         });
     }
 
-    fn first(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui) {}
+    fn first(&mut self, _options: &BarOptions, _ctx: &egui::Context, _ui: &mut Ui) {}
 
     fn middle(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui) {
         let date = chrono::Local::now();
