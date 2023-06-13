@@ -16,6 +16,7 @@ pub struct Config {
 pub struct ConfigColors {
     pub background: Option<Color>,
     pub text: Option<Color>,
+    pub text_secondary: Option<Color>,
 }
 
 pub fn get_options(path: Option<PathBuf>) -> BarOptions {
@@ -29,14 +30,19 @@ pub fn get_options(path: Option<PathBuf>) -> BarOptions {
             title: config.title.unwrap_or("pagbar".into()),
             position: config.position.unwrap_or(bar::Position::Bottom),
             size: config.size.unwrap_or(50),
-            bg_color: config
+            background: config
                 .colors
                 .background
                 .unwrap_or(Color { r: 0, g: 0, b: 0 }),
-            text_color: config.colors.text.unwrap_or(Color {
+            text: config.colors.text.unwrap_or(Color {
                 r: 255,
                 g: 255,
                 b: 255,
+            }),
+            text_secondary: config.colors.text_secondary.unwrap_or(Color {
+                r: 150,
+                g: 150,
+                b: 150,
             }),
         }
     } else {
@@ -45,11 +51,16 @@ pub fn get_options(path: Option<PathBuf>) -> BarOptions {
             title: "pagbar".to_string(),
             position: bar::Position::Bottom,
             size: 100,
-            bg_color: Color { r: 0, g: 0, b: 0 },
-            text_color: Color {
+            background: Color { r: 0, g: 0, b: 0 },
+            text: Color {
                 r: 255,
                 g: 255,
                 b: 255,
+            },
+            text_secondary: Color {
+                r: 150,
+                g: 150,
+                b: 150,
             },
         }
     }

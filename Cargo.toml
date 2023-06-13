@@ -16,9 +16,10 @@ glow = "0.12.2"
 glutin = { version = "0.30.8", default_features = false }
 log = "0.4.18"
 raw-window-handle = "0.5.2"
-sysinfo = "0.29.2"
+# sysinfo = "0.29.2"
 thiserror = "1.0.40"
 clap = { version = "4.3.3", features = ["derive"] }
 toml = "0.7.4"
 serde = { version = "1.0.164", features = ["derive"] }
 xdg = "2.5.0"
+systemstat = "0.2.3"

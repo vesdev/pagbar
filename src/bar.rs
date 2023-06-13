@@ -1,4 +1,4 @@
-use egui::{Context, Ui};
+use egui::{Color32, Context, Ui};
 use serde::{de::Visitor, Deserialize, Serialize};
 mod backend;
 
@@ -9,42 +9,46 @@ pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
 }
 
 pub trait Bar {
-    fn first(&mut self, ctx: &egui::Context, ui: &mut Ui);
-    fn middle(&mut self, ctx: &egui::Context, ui: &mut Ui);
-    fn last(&mut self, ctx: &egui::Context, ui: &mut Ui);
+    fn first(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui);
+    fn middle(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui);
+    fn last(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui);
 }
 
 fn display_bar(bar: &mut Box<dyn Bar>, ctx: &Context, options: &BarOptions) {
     let visuals: egui::Visuals = options.clone().into();
     ctx.set_visuals(visuals);
 
+    // NOTE:
+    // usually central panel would be added after
+    // side panels, but since we want it to be centered
+    // regardless of side panel size its added before
+    egui::CentralPanel::default().show(ctx, |ui| bar.middle(options, ctx, ui));
+
     if matches!(&options.position, Position::Bottom | Position::Top) {
         egui::SidePanel::left("first")
             .resizable(false)
-            .min_width(300.)
+            .min_width(0.)
             .show_separator_line(false)
-            .show(ctx, |ui| bar.first(ctx, ui));
+            .show(ctx, |ui| bar.first(options, ctx, ui));
 
         egui::SidePanel::right("last")
             .resizable(false)
-            .min_width(300.)
+            .min_width(0.)
             .show_separator_line(false)
-            .show(ctx, |ui| bar.last(ctx, ui));
+            .show(ctx, |ui| bar.last(options, ctx, ui));
     } else {
         egui::TopBottomPanel::top("first")
             .resizable(false)
-            .min_height(200.)
+            .min_height(0.)
             .show_separator_line(false)
-            .show(ctx, |ui| bar.first(ctx, ui));
+            .show(ctx, |ui| bar.first(options, ctx, ui));
 
         egui::TopBottomPanel::bottom("last")
             .resizable(false)
-            .min_height(200.)
+            .min_height(0.)
             .show_separator_line(false)
-            .show(ctx, |ui| bar.last(ctx, ui));
+            .show(ctx, |ui| bar.last(options, ctx, ui));
     }
-
-    egui::CentralPanel::default().show(ctx, |ui| bar.middle(ctx, ui));
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, PartialOrd)]
@@ -56,11 +60,17 @@ pub enum Position {
     Bottom,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+}
+
+impl From<Color> for Color32 {
+    fn from(value: Color) -> Self {
+        Color32::from_rgb(value.r, value.g, value.b)
+    }
 }
 
 impl Serialize for Color {
@@ -114,8 +124,9 @@ pub struct BarOptions {
     pub title: String,
     pub position: Position,
     pub size: u16,
-    pub bg_color: Color,
-    pub text_color: Color,
+    pub background: Color,
+    pub text: Color,
+    pub text_secondary: Color,
 }
 
 impl From<BarOptions> for egui::Visuals {
@@ -123,29 +134,29 @@ impl From<BarOptions> for egui::Visuals {
         egui::Visuals {
             dark_mode: false,
             extreme_bg_color: egui::Color32::from_rgb(
-                value.bg_color.r,
-                value.bg_color.g,
-                value.bg_color.b,
+                value.background.r,
+                value.background.g,
+                value.background.b,
             ),
             faint_bg_color: egui::Color32::from_rgb(
-                value.bg_color.r,
-                value.bg_color.g,
-                value.bg_color.b,
+                value.background.r,
+                value.background.g,
+                value.background.b,
             ),
             window_fill: egui::Color32::from_rgb(
-                value.bg_color.r,
-                value.bg_color.g,
-                value.bg_color.b,
+                value.background.r,
+                value.background.g,
+                value.background.b,
             ),
             panel_fill: egui::Color32::from_rgb(
-                value.bg_color.r,
-                value.bg_color.g,
-                value.bg_color.b,
+                value.background.r,
+                value.background.g,
+                value.background.b,
             ),
             override_text_color: Some(egui::Color32::from_rgb(
-                value.text_color.r,
-                value.text_color.g,
-                value.text_color.b,
+                value.background.r,
+                value.background.g,
+                value.background.b,
             )),
 
             ..Default::default()

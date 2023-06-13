@@ -1,11 +1,11 @@
 use std::time::Duration;
+use systemstat::{saturating_sub_bytes, Platform, System};
 
-use bar::Bar;
+use bar::{Bar, BarOptions};
 
 use chrono::Timelike;
 use clap::Parser;
-use egui::Ui;
-use sysinfo::{DiskExt, SystemExt};
+use egui::{Color32, RichText, Ui};
 
 mod bar;
 mod config;
@@ -32,38 +32,50 @@ fn main() {
 }
 
 pub struct PagBar {
-    sys: sysinfo::System,
+    sys: systemstat::System,
 }
 
 impl Default for PagBar {
     fn default() -> Self {
         Self {
-            sys: sysinfo::System::new_all(),
+            sys: systemstat::System::new(),
         }
     }
 }
 
 impl Bar for PagBar {
-    fn last(&mut self, ctx: &egui::Context, ui: &mut Ui) {
-        ui.centered_and_justified(|ui| {
-            let disk = &self.sys.disks()[0];
-            let disk_use = (1. - disk.available_space() as f64 / disk.total_space() as f64) * 100.;
-            let memory_use = self.sys.used_memory() as f64 / self.sys.total_memory() as f64 * 100.;
+    fn last(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui) {
+        ui.horizontal_centered(|ui| {
+            let memory = match self.sys.memory() {
+                Ok(mem) => (1. - mem.free.as_u64() as f64 / mem.total.as_u64() as f64) * 100.,
+                Err(_) => 0.,
+            };
 
-            ui.heading(format!("/ disk {disk_use:.0}% / ram {memory_use:.0}%"));
+            let disk = match self.sys.mount_at("/") {
+                Ok(mount) => (1. - mount.free.as_u64() as f64 / mount.total.as_u64() as f64) * 100.,
+                Err(_) => 0.,
+            };
+
+            let temp = self.sys.cpu_temp().unwrap_or(0.);
+
+            ui.heading(RichText::new("/ ".to_string()).color(options.text));
+            ui.heading(RichText::new(format!("{disk:.0}%")).color(options.text_secondary));
+            ui.heading(RichText::new("ram ".to_string()).color(options.text));
+            ui.heading(RichText::new(format!("{memory:.0}%")).color(options.text_secondary));
+            ui.heading(RichText::new("cpu".to_string()).color(options.text));
+            ui.heading(RichText::new(format!("{temp}°C")).color(options.text_secondary));
+            ui.add_space(10.);
         });
     }
 
-    fn first(&mut self, ctx: &egui::Context, ui: &mut Ui) {}
+    fn first(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui) {}
 
-    fn middle(&mut self, ctx: &egui::Context, ui: &mut Ui) {
-        ctx.set_pixels_per_point(1.2);
-        self.sys.refresh_all();
+    fn middle(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui) {
         let date = chrono::Local::now();
-        ctx.request_repaint_after(Duration::from_secs(60 - date.second() as u64));
-        let date = date.format("%H:%M").to_string();
+        ctx.request_repaint_after(Duration::from_secs(1));
+        let date = date.format("%H:%M:%S").to_string();
         ui.centered_and_justified(|ui| {
-            ui.heading(date);
+            ui.heading(RichText::new(date).size(25.).color(options.text));
         });
     }
 }

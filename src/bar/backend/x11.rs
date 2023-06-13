@@ -6,11 +6,9 @@
 use crate::bar::{self, Bar, BarOptions, Position};
 use egui_winit::winit::{self, monitor::MonitorHandle, platform::x11::WindowBuilderExtX11};
 use glow::Context;
-use std::{cell::RefCell, rc::Rc, time::Duration};
 
 pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
     let event_loop = winit::event_loop::EventLoopBuilder::with_user_event().build();
-    let monitors: Vec<MonitorHandle> = event_loop.available_monitors().collect();
 
     let monitor = event_loop
         .primary_monitor()
@@ -57,7 +55,6 @@ struct GlutinWindowContext {
 
 impl GlutinWindowContext {
     // refactor this function to use `glutin-winit` crate eventually.
-    // preferably add android support at the same time.
     #[allow(unsafe_code)]
     unsafe fn new(
         event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
@@ -73,7 +70,7 @@ impl GlutinWindowContext {
         use glutin::display::GlDisplay;
         use glutin::prelude::GlSurface;
         use raw_window_handle::HasRawWindowHandle;
-        //let zero_monitor = event_loop.available_monitors().nth(0);
+
         let winit_window_builder = winit::window::WindowBuilder::new()
             .with_resizable(true)
             .with_override_redirect(false)
@@ -204,9 +201,9 @@ fn events(
     let mut egui_glow = egui_glow::EguiGlow::new(&event_loop, gl.clone(), None);
 
     let clear_color = (
-        options.bg_color.r as f32 / 255.,
-        options.bg_color.g as f32 / 255.,
-        options.bg_color.b as f32 / 255.,
+        options.background.r as f32 / 255.,
+        options.background.g as f32 / 255.,
+        options.background.b as f32 / 255.,
     );
 
     event_loop.run(move |event, _, control_flow| {
@@ -224,7 +221,6 @@ fn events(
                 winit::event_loop::ControlFlow::Poll
             } else if let Some(repaint_after_instant) =
                 std::time::Instant::now().checked_add(repaint_after)
-            //tick rate
             {
                 winit::event_loop::ControlFlow::WaitUntil(repaint_after_instant)
             } else {
@@ -239,11 +235,9 @@ fn events(
                 }
 
                 // draw things behind egui here
-
                 egui_glow.paint(gl_window.window());
 
                 // draw things on top of egui here
-
                 gl_window.swap_buffers().unwrap();
                 gl_window.window().set_visible(true);
             }
