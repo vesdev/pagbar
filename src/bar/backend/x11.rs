@@ -3,46 +3,83 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(unsafe_code)]
 
-use crate::bar::{self, Bar, BarOptions, Position};
-use egui_winit::winit::{self, platform::x11::WindowBuilderExtX11};
-use glow::Context;
+use std::{collections::HashMap, sync::Arc};
 
-pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
+use crate::bar::{self, Bar, BarOption, Position};
+use egui_winit::winit::{
+    self, monitor::MonitorHandle, platform::x11::WindowBuilderExtX11, window::WindowId,
+};
+
+pub fn run(options: Vec<BarOption>, bar_factory: fn() -> Box<dyn Bar>) {
+    // workaround for winit scaling bug
+    std::env::set_var("WINIT_X11_SCALE_FACTOR", "1");
+
     let event_loop = winit::event_loop::EventLoopBuilder::with_user_event().build();
+    let mut windows = HashMap::new();
+    for option in options {
+        let monitor = event_loop
+            .available_monitors()
+            .nth(option.monitor)
+            .unwrap_or_else(|| panic!("No monitors found"));
 
-    let monitor = event_loop
-        .primary_monitor()
-        .unwrap_or_else(|| panic!("No monitors found"));
+        let (x, y, width, height) = match option.position {
+            Position::Left => (
+                monitor.position().x,
+                monitor.position().y,
+                option.size as u32,
+                monitor.size().height,
+            ),
+            Position::Right => (
+                monitor.position().x + monitor.size().width as i32 - option.size as i32,
+                monitor.position().y,
+                option.size as u32,
+                monitor.size().height,
+            ),
+            Position::Top => (
+                monitor.position().x,
+                monitor.position().y,
+                monitor.size().width,
+                option.size as u32,
+            ),
+            Position::Bottom => (
+                monitor.position().x,
+                monitor.position().y + monitor.size().height as i32 - option.size as i32,
+                monitor.size().width,
+                option.size as u32,
+            ),
+        };
+        let window = create_display(
+            &event_loop,
+            monitor.clone(),
+            x,
+            y,
+            width,
+            height,
+            option.title.clone(),
+        );
 
-    let (x, y, width, height) = match options.position {
-        Position::Left => (
-            monitor.position().x,
-            monitor.position().y,
-            options.size as u32,
-            monitor.size().height,
-        ),
-        Position::Right => (
-            monitor.position().x + monitor.size().width as i32 - options.size as i32,
-            monitor.position().y,
-            options.size as u32,
-            monitor.size().height,
-        ),
-        Position::Top => (
-            monitor.position().x,
-            monitor.position().y,
-            monitor.size().width,
-            options.size as u32,
-        ),
-        Position::Bottom => (
-            monitor.position().x,
-            monitor.position().y + monitor.size().height as i32 - options.size as i32,
-            monitor.size().width,
-            options.size as u32,
-        ),
-    };
+        let glow = Arc::new(window.1);
 
-    let (window, context) = create_display(&event_loop, x, y, width, height, options.title.clone());
-    events(window, context, event_loop, bar, options);
+        windows.insert(
+            window.0.window.id(),
+            Context {
+                glutin: window.0,
+                egui_glow: egui_glow::EguiGlow::new(&event_loop, glow.clone(), None),
+                glow,
+                option,
+                bar: bar_factory(),
+            },
+        );
+    }
+    events(windows, event_loop);
+}
+
+struct Context {
+    pub glutin: GlutinWindowContext,
+    pub glow: Arc<glow::Context>,
+    pub egui_glow: egui_glow::EguiGlow,
+    pub option: BarOption,
+    pub bar: Box<dyn Bar>,
 }
 
 /// The majority of `GlutinWindowContext` is taken from `eframe`
@@ -58,6 +95,7 @@ impl GlutinWindowContext {
     #[allow(unsafe_code)]
     unsafe fn new(
         event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
+        monitor: MonitorHandle,
         x: i32,
         y: i32,
         width: u32,
@@ -71,41 +109,19 @@ impl GlutinWindowContext {
         use glutin::prelude::GlSurface;
         use raw_window_handle::HasRawWindowHandle;
 
-        let winit_window_builder = winit::window::WindowBuilder::new()
-            .with_resizable(true)
-            .with_override_redirect(false)
-            .with_position(winit::dpi::PhysicalPosition::new(x, y))
-            .with_inner_size(winit::dpi::PhysicalSize { width, height })
-            .with_x11_window_type(vec![winit::platform::x11::XWindowType::Dock])
-            .with_title(title) // Keep hidden until we've painted something. See https://github.com/emilk/egui/pull/2279
-            .with_visible(false);
-
-        let config_template_builder = glutin::config::ConfigTemplateBuilder::new()
-            .prefer_hardware_accelerated(Some(true))
-            .with_depth_size(0)
-            .with_stencil_size(0)
-            .with_transparency(false);
+        let winit_window_builder = Self::window_builder(x, y, width, height, title);
+        let config_template_builder = Self::config_template_builder();
 
         log::debug!("trying to get gl_config");
         let (mut window, gl_config) =
-            glutin_winit::DisplayBuilder::new() // let glutin-winit helper crate handle the complex parts of opengl context creation
-                .with_preference(glutin_winit::ApiPrefence::FallbackEgl) // https://github.com/emilk/egui/issues/2520#issuecomment-1367841150
-                .with_window_builder(Some(winit_window_builder.clone()))
-                .build(
-                    event_loop,
-                    config_template_builder,
-                    |mut config_iterator| {
-                        config_iterator.next().expect(
-                            "failed to find a matching configuration for creating glutin config",
-                        )
-                    },
-                )
-                .expect("failed to create gl_config");
+            Self::display_builder(event_loop, &winit_window_builder, config_template_builder);
+
         let gl_display = gl_config.display();
         log::debug!("found gl_config: {:?}", &gl_config);
 
         let raw_window_handle = window.as_ref().map(|w| w.raw_window_handle());
         log::debug!("raw window handle: {:?}", raw_window_handle);
+
         let context_attributes =
             glutin::context::ContextAttributesBuilder::new().build(raw_window_handle);
         // by default, glutin will try to create a core opengl context. but, if it is not available, try to create a gl-es context using this fallback attributes
@@ -166,6 +182,52 @@ impl GlutinWindowContext {
         }
     }
 
+    fn window_builder(
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        title: String,
+    ) -> winit::window::WindowBuilder {
+        winit::window::WindowBuilder::new()
+            .with_resizable(false)
+            .with_override_redirect(false)
+            .with_position(winit::dpi::PhysicalPosition::new(x, y))
+            .with_x11_window_type(vec![winit::platform::x11::XWindowType::Dock])
+            .with_inner_size(winit::dpi::PhysicalSize { width, height })
+            .with_title(title)
+            // Keep hidden until we've painted something. See https://github.com/emilk/egui/pull/2279
+            .with_visible(false)
+    }
+
+    fn config_template_builder() -> glutin::config::ConfigTemplateBuilder {
+        glutin::config::ConfigTemplateBuilder::new()
+            .prefer_hardware_accelerated(Some(true))
+            .with_depth_size(0)
+            .with_stencil_size(0)
+            .with_transparency(false)
+    }
+
+    fn display_builder(
+        event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
+        winit_window_builder: &winit::window::WindowBuilder,
+        config_template_builder: glutin::config::ConfigTemplateBuilder,
+    ) -> (Option<winit::window::Window>, glutin::config::Config) {
+        glutin_winit::DisplayBuilder::new() // let glutin-winit helper crate handle the complex parts of opengl context creation
+            .with_preference(glutin_winit::ApiPrefence::FallbackEgl) // https://github.com/emilk/egui/issues/2520#issuecomment-1367841150
+            .with_window_builder(Some(winit_window_builder.clone()))
+            .build(
+                event_loop,
+                config_template_builder,
+                |mut config_iterator| {
+                    config_iterator.next().expect(
+                        "failed to find a matching configuration for creating glutin config",
+                    )
+                },
+            )
+            .expect("failed to create gl_config")
+    }
+
     fn window(&self) -> &winit::window::Window {
         &self.window
     }
@@ -191,33 +253,21 @@ impl GlutinWindowContext {
 }
 
 fn events(
-    gl_window: GlutinWindowContext,
-    gl: Context,
+    mut window_context: HashMap<WindowId, Context>,
     event_loop: winit::event_loop::EventLoop<()>,
-    mut bar: Box<dyn Bar>,
-    options: BarOptions,
 ) {
-    let gl = std::sync::Arc::new(gl);
-    let mut egui_glow = egui_glow::EguiGlow::new(&event_loop, gl.clone(), None);
-
-    let clear_color = (
-        options.background.r as f32 / 255.,
-        options.background.g as f32 / 255.,
-        options.background.b as f32 / 255.,
-    );
-
     event_loop.run(move |event, _, control_flow| {
-        let mut redraw = || {
+        let mut redraw = |context: &mut Context| {
             let quit = false;
 
-            let repaint_after = egui_glow.run(gl_window.window(), |ctx| {
-                bar::display_bar(&mut bar, ctx, &options)
+            let repaint_after = context.egui_glow.run(context.glutin.window(), |ctx| {
+                bar::display_bar(&mut context.bar, ctx, &context.option)
             });
 
             *control_flow = if quit {
                 winit::event_loop::ControlFlow::Exit
             } else if repaint_after.is_zero() {
-                gl_window.window().request_redraw();
+                context.glutin.window().request_redraw();
                 winit::event_loop::ControlFlow::Poll
             } else if let Some(repaint_after_instant) =
                 std::time::Instant::now().checked_add(repaint_after)
@@ -228,18 +278,25 @@ fn events(
             };
 
             {
+                let clear_color = (
+                    context.option.background.r as f32 / 255.,
+                    context.option.background.g as f32 / 255.,
+                    context.option.background.b as f32 / 255.,
+                );
                 unsafe {
                     use glow::HasContext as _;
-                    gl.clear_color(clear_color.0, clear_color.1, clear_color.2, 1.0);
-                    gl.clear(glow::COLOR_BUFFER_BIT);
+                    context
+                        .glow
+                        .clear_color(clear_color.0, clear_color.1, clear_color.2, 1.0);
+                    context.glow.clear(glow::COLOR_BUFFER_BIT);
                 }
 
                 // draw things behind egui here
-                egui_glow.paint(gl_window.window());
+                context.egui_glow.paint(context.glutin.window());
 
                 // draw things on top of egui here
-                gl_window.swap_buffers().unwrap();
-                gl_window.window().set_visible(true);
+                context.glutin.swap_buffers().unwrap();
+                context.glutin.window().set_visible(true);
             }
         };
 
@@ -247,37 +304,50 @@ fn events(
             // Platform-dependent event handlers to workaround a winit bug
             // See: https://github.com/rust-windowing/winit/issues/987
             // See: https://github.com/rust-windowing/winit/issues/1619
-            winit::event::Event::RedrawEventsCleared if cfg!(windows) => redraw(),
-            winit::event::Event::RedrawRequested(_) if !cfg!(windows) => redraw(),
-
-            winit::event::Event::WindowEvent { event, .. } => {
+            winit::event::Event::RedrawEventsCleared if cfg!(windows) => {
+                for (_, gl_window) in window_context.iter_mut() {
+                    redraw(gl_window)
+                }
+            }
+            winit::event::Event::RedrawRequested(window_id) if !cfg!(windows) => {
+                redraw(window_context.get_mut(&window_id).unwrap())
+            }
+            //TODO: handle monitor resize
+            winit::event::Event::WindowEvent {
+                event, window_id, ..
+            } => {
                 use winit::event::WindowEvent;
+                let context = window_context.get_mut(&window_id).unwrap();
                 if matches!(event, WindowEvent::CloseRequested | WindowEvent::Destroyed) {
                     *control_flow = winit::event_loop::ControlFlow::Exit;
                 }
 
                 if let winit::event::WindowEvent::Resized(physical_size) = &event {
-                    gl_window.resize(*physical_size);
+                    context.glutin.resize(*physical_size);
                 } else if let winit::event::WindowEvent::ScaleFactorChanged {
                     new_inner_size, ..
                 } = &event
                 {
-                    gl_window.resize(**new_inner_size);
+                    context.glutin.resize(**new_inner_size);
                 }
 
-                let event_response = egui_glow.on_event(&event);
+                let event_response = context.egui_glow.on_event(&event);
 
                 if event_response.repaint {
-                    gl_window.window().request_redraw();
+                    context.glutin.window().request_redraw();
                 }
             }
             winit::event::Event::LoopDestroyed => {
-                egui_glow.destroy();
+                for (_, context) in window_context.iter_mut() {
+                    context.egui_glow.destroy();
+                }
             }
             winit::event::Event::NewEvents(winit::event::StartCause::ResumeTimeReached {
                 ..
             }) => {
-                gl_window.window().request_redraw();
+                for (_, context) in window_context.iter_mut() {
+                    context.glutin.window().request_redraw();
+                }
             }
 
             _ => (),
@@ -287,6 +357,7 @@ fn events(
 
 fn create_display(
     event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
+    monitor: MonitorHandle,
     x: i32,
     y: i32,
     width: u32,
@@ -294,7 +365,7 @@ fn create_display(
     title: String,
 ) -> (GlutinWindowContext, glow::Context) {
     let glutin_window_context =
-        unsafe { GlutinWindowContext::new(event_loop, x, y, width, height, title) };
+        unsafe { GlutinWindowContext::new(event_loop, monitor, x, y, width, height, title) };
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
             let s = std::ffi::CString::new(s)

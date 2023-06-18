@@ -1,20 +1,22 @@
+use std::sync::Arc;
+
 use egui::{Color32, Context, Ui};
 use serde::{de::Visitor, Deserialize, Serialize};
 mod backend;
 
-pub fn run(options: BarOptions, bar: Box<dyn Bar>) {
-    match options.protocol {
-        Protocol::X11 => backend::x11::run(options, bar),
+pub fn run(protocol: Protocol, options: Vec<BarOption>, bar_factory: fn() -> Box<dyn Bar>) {
+    match protocol {
+        Protocol::X11 => backend::x11::run(options, bar_factory),
     }
 }
 
 pub trait Bar {
-    fn first(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui);
-    fn middle(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui);
-    fn last(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui);
+    fn first(&mut self, options: &BarOption, ctx: &egui::Context, ui: &mut Ui);
+    fn middle(&mut self, options: &BarOption, ctx: &egui::Context, ui: &mut Ui);
+    fn last(&mut self, options: &BarOption, ctx: &egui::Context, ui: &mut Ui);
 }
 
-fn display_bar(bar: &mut Box<dyn Bar>, ctx: &Context, options: &BarOptions) {
+fn display_bar(bar: &mut Box<dyn Bar>, ctx: &Context, options: &BarOption) {
     let visuals: egui::Visuals = options.clone().into();
     ctx.set_visuals(visuals);
 
@@ -119,8 +121,8 @@ impl<'de> Visitor<'de> for ColorVisitor {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct BarOptions {
-    pub protocol: Protocol,
+pub struct BarOption {
+    pub monitor: usize,
     pub title: String,
     pub position: Position,
     pub size: u16,
@@ -129,8 +131,30 @@ pub struct BarOptions {
     pub text_secondary: Color,
 }
 
-impl From<BarOptions> for egui::Visuals {
-    fn from(value: BarOptions) -> Self {
+impl Default for BarOption {
+    fn default() -> Self {
+        Self {
+            monitor: 0,
+            title: "pagbar".to_string(),
+            position: Position::Bottom,
+            size: 100,
+            background: Color { r: 0, g: 0, b: 0 },
+            text: Color {
+                r: 255,
+                g: 255,
+                b: 255,
+            },
+            text_secondary: Color {
+                r: 150,
+                g: 150,
+                b: 150,
+            },
+        }
+    }
+}
+
+impl From<BarOption> for egui::Visuals {
+    fn from(value: BarOption) -> Self {
         egui::Visuals {
             dark_mode: false,
             extreme_bg_color: egui::Color32::from_rgb(

@@ -1,7 +1,7 @@
 use std::time::Duration;
 use systemstat::Platform;
 
-use bar::{Bar, BarOptions, Position};
+use bar::{Bar, BarOption, Position};
 
 use clap::Parser;
 use egui::{RichText, Ui};
@@ -23,10 +23,10 @@ fn main() {
         let base_dirs = xdg::BaseDirectories::new().unwrap();
         let options =
             config::get_options(Some(base_dirs.get_config_home().join("pagbar/config.toml")));
-        bar::run(options, Box::<PagBar>::default())
+        bar::run(bar::Protocol::X11, options, || Box::<PagBar>::default())
     } else {
         let options = config::get_options(args.config);
-        bar::run(options, Box::<PagBar>::default())
+        bar::run(bar::Protocol::X11, options, || Box::<PagBar>::default());
     }
 }
 
@@ -43,7 +43,7 @@ impl Default for PagBar {
 }
 
 impl Bar for PagBar {
-    fn last(&mut self, options: &BarOptions, _ctx: &egui::Context, ui: &mut Ui) {
+    fn last(&mut self, options: &BarOption, _ctx: &egui::Context, ui: &mut Ui) {
         let stats = |ui: &mut Ui| {
             let memory = match self.sys.memory() {
                 Ok(mem) => (1. - mem.free.as_u64() as f64 / mem.total.as_u64() as f64) * 100.,
@@ -73,9 +73,9 @@ impl Bar for PagBar {
         }
     }
 
-    fn first(&mut self, _options: &BarOptions, _ctx: &egui::Context, _ui: &mut Ui) {}
+    fn first(&mut self, _options: &BarOption, _ctx: &egui::Context, _ui: &mut Ui) {}
 
-    fn middle(&mut self, options: &BarOptions, ctx: &egui::Context, ui: &mut Ui) {
+    fn middle(&mut self, options: &BarOption, ctx: &egui::Context, ui: &mut Ui) {
         ui.centered_and_justified(|ui| {
             let date = chrono::Local::now();
             ctx.request_repaint_after(Duration::from_secs(1));

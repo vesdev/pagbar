@@ -6,7 +6,7 @@
         - [ ] util panel section
 
 - [x] flip panels for vertical bar
-- [x] default to primary monitor
+- [ ] multi bar support
 
 util:
 - [x] clock
@@ -15,7 +15,7 @@ util:
 - [ ] audio control
 
 bug:
-- [ ] inconsistency with phyiscal/logical monitor size
+- [x] inconsistency with phyiscal/logical monitor size
 
 other:
 - [ ] look into plugins

@@ -1,8 +1,41 @@
-monitor = 0
-position = "right"
-size = 60
-
 [colors]
 background = "#000000"
 text = "#ff2255"
 text-secondary = "#888888"
+
+[bar.main]
+monitor = 0
+position = "right"
+size = 200
+
+[bar.other]
+monitor = 0
+position = "top"
+size = 60
+
+# modules
+# [module.disk]
+# panel = "last"
+# format-prefix = "/ "
+# color-prefix = "text"
+# format = "{}%"
+# color = "text-secondary"
+
+# [module.ram]
+# panel = "last"
+# format-prefix = "ram "
+# color-prefix = "text"
+# format = "{}%"
+# color = "text-secondary"
+
+# [module.cpu]
+# panel = "last"
+# format-prefix = "cpu "
+# color-prefix = "text"
+# format = "{}°C"
+# color = "text-secondary"
+
+# [module.clock]
+# panel = "middle"
+# format = "%H\n:%M:\n%S"
+# color = "text"
