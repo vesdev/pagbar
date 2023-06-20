@@ -5,13 +5,14 @@ text-secondary = "#888888"
 
 [bar.main]
 monitor = 0
-position = "right"
-size = 200
-
-[bar.other]
-monitor = 0
 position = "top"
 size = 60
+
+# UNIMPLEMENTED
+# [bar.side]
+# monitor = 0
+# position = "right"
+# size = 60
 
 # modules
 # [module.disk]

@@ -16,6 +16,7 @@ struct Cli {
 }
 
 fn main() {
+    env_logger::init();
     let args = Cli::parse();
 
     if args.config.is_none() {

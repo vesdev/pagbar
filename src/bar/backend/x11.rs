@@ -1,14 +1,12 @@
-//! Example how to use pure `egui_glow`.
-
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(unsafe_code)]
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{mpsc, Arc},
+};
 
 use crate::bar::{self, Bar, BarOption, Position};
-use egui_winit::winit::{
-    self, monitor::MonitorHandle, platform::x11::WindowBuilderExtX11, window::WindowId,
-};
+use egui_winit::winit::{self, platform::x11::WindowBuilderExtX11, window::WindowId};
 
 pub fn run(options: Vec<BarOption>, bar_factory: fn() -> Box<dyn Bar>) {
     // workaround for winit scaling bug
@@ -48,24 +46,16 @@ pub fn run(options: Vec<BarOption>, bar_factory: fn() -> Box<dyn Bar>) {
                 option.size as u32,
             ),
         };
-        let window = create_display(
-            &event_loop,
-            monitor.clone(),
-            x,
-            y,
-            width,
-            height,
-            option.title.clone(),
-        );
 
-        let glow = Arc::new(window.1);
+        let window = create_display(&event_loop, x, y, width, height, option.title.clone());
+        let glow_context = Arc::new(window.1);
 
         windows.insert(
             window.0.window.id(),
-            Context {
+            Window {
                 glutin: window.0,
-                egui_glow: egui_glow::EguiGlow::new(&event_loop, glow.clone(), None),
-                glow,
+                egui_glow: egui_glow::EguiGlow::new(&event_loop, glow_context.clone(), None),
+                glow: glow_context,
                 option,
                 bar: bar_factory(),
             },
@@ -74,7 +64,7 @@ pub fn run(options: Vec<BarOption>, bar_factory: fn() -> Box<dyn Bar>) {
     events(windows, event_loop);
 }
 
-struct Context {
+struct Window {
     pub glutin: GlutinWindowContext,
     pub glow: Arc<glow::Context>,
     pub egui_glow: egui_glow::EguiGlow,
@@ -95,7 +85,6 @@ impl GlutinWindowContext {
     #[allow(unsafe_code)]
     unsafe fn new(
         event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
-        monitor: MonitorHandle,
         x: i32,
         y: i32,
         width: u32,
@@ -253,11 +242,11 @@ impl GlutinWindowContext {
 }
 
 fn events(
-    mut window_context: HashMap<WindowId, Context>,
+    mut window_context: HashMap<WindowId, Window>,
     event_loop: winit::event_loop::EventLoop<()>,
 ) {
     event_loop.run(move |event, _, control_flow| {
-        let mut redraw = |context: &mut Context| {
+        let mut redraw = |context: &mut Window| {
             let quit = false;
 
             let repaint_after = context.egui_glow.run(context.glutin.window(), |ctx| {
@@ -301,14 +290,6 @@ fn events(
         };
 
         match event {
-            // Platform-dependent event handlers to workaround a winit bug
-            // See: https://github.com/rust-windowing/winit/issues/987
-            // See: https://github.com/rust-windowing/winit/issues/1619
-            winit::event::Event::RedrawEventsCleared if cfg!(windows) => {
-                for (_, gl_window) in window_context.iter_mut() {
-                    redraw(gl_window)
-                }
-            }
             winit::event::Event::RedrawRequested(window_id) if !cfg!(windows) => {
                 redraw(window_context.get_mut(&window_id).unwrap())
             }
@@ -318,17 +299,17 @@ fn events(
             } => {
                 use winit::event::WindowEvent;
                 let context = window_context.get_mut(&window_id).unwrap();
-                if matches!(event, WindowEvent::CloseRequested | WindowEvent::Destroyed) {
-                    *control_flow = winit::event_loop::ControlFlow::Exit;
-                }
-
-                if let winit::event::WindowEvent::Resized(physical_size) = &event {
-                    context.glutin.resize(*physical_size);
-                } else if let winit::event::WindowEvent::ScaleFactorChanged {
-                    new_inner_size, ..
-                } = &event
-                {
-                    context.glutin.resize(**new_inner_size);
+                match &event {
+                    WindowEvent::CloseRequested | WindowEvent::Destroyed => {
+                        *control_flow = winit::event_loop::ControlFlow::Exit;
+                    }
+                    winit::event::WindowEvent::Resized(physical_size) => {
+                        context.glutin.resize(*physical_size);
+                    }
+                    winit::event::WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                        context.glutin.resize(**new_inner_size);
+                    }
+                    _ => {}
                 }
 
                 let event_response = context.egui_glow.on_event(&event);
@@ -357,7 +338,6 @@ fn events(
 
 fn create_display(
     event_loop: &winit::event_loop::EventLoopWindowTarget<()>,
-    monitor: MonitorHandle,
     x: i32,
     y: i32,
     width: u32,
@@ -365,7 +345,7 @@ fn create_display(
     title: String,
 ) -> (GlutinWindowContext, glow::Context) {
     let glutin_window_context =
-        unsafe { GlutinWindowContext::new(event_loop, monitor, x, y, width, height, title) };
+        unsafe { GlutinWindowContext::new(event_loop, x, y, width, height, title) };
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
             let s = std::ffi::CString::new(s)

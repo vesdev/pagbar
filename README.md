@@ -2,5 +2,4 @@
 <p align="center">PAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAG</p>
 
 ### note: 
-supports only starting from primary monitor
-until issue resolved
+multi-bar support doesn't work yet
