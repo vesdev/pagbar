@@ -1,9 +1,6 @@
 #![allow(unsafe_code)]
 
-use std::{
-    collections::HashMap,
-    sync::{mpsc, Arc},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::bar::{self, Bar, BarOption, Position};
 use egui_winit::winit::{self, platform::x11::WindowBuilderExtX11, window::WindowId};
