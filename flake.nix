@@ -1,5 +1,5 @@
 {
-  description = "pagbar";
+  description = "status bar";
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
@@ -8,10 +8,6 @@
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
     };
   };
 
@@ -30,53 +26,14 @@
           overlays = [ (import rust-overlay) ];
         };
 
-        craneLib = crane.lib.${system};
-      
-        pagbar = with pkgs; craneLib.buildPackage rec {
-          src = craneLib.cleanCargoSource (craneLib.path ./.);
-          doCheck = true;
-          buildInputs = [
-            libGL
-            libxkbcommon
-            # wayland
-            xorg.libX11
-            xorg.libXcursor
-            xorg.libXi
-            xorg.libXrandr
-          ];
+        rustToolchain = pkgs.rust-bin.stable.latest.default;
+        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
-          nativeBuildInputs = [
-            pkg-config
-            pkgs.makeWrapper 
-          ];
-
-          postInstall = ''
-            wrapProgram "$out/bin/pagbar" --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath buildInputs}"
-          '';
-          LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
-        };
-
-      in with pkgs;{
-
-        packages.default = pagbar;
-
-        apps.default = flake-utils.lib.mkApp {
-          drv = pagbar;
-        };
-
-        devShells.default = mkShell rec {
-          nativeBuildInputs = [
-            pkg-config
-          ];
-          buildInputs = [
-            (rust-bin.stable.latest.default.override { extensions = [ "rust-src" "rust-analyzer" ]; })
-            bashInteractive
-            rust-bin.stable.latest.default
-            rust-analyzer
-            
-
+        commonArgs = with pkgs; {
+          buildInputs = [          
             libxkbcommon
             libGL
+            vulkan-loader
 
             # WINIT_UNIX_BACKEND=wayland
             # wayland
@@ -88,7 +45,44 @@
             xorg.libX11
           ];
 
+          nativeBuildInputs = [
+            pkg-config
+          ];
+        };
+                  
+        pagbar = craneLib.buildPackage rec {
+          src = craneLib.cleanCargoSource (craneLib.path ./.);
+
+          buildInputs = commonArgs.buildInputs; 
+          nativeBuildInputs = [
+            pkgs.makeWrapper
+          ] 
+          ++ commonArgs.nativeBuildInputs;
+
+          postInstall = ''
+            wrapProgram "$out/bin/pagbar" --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath buildInputs}"
+          '';
+        };
+
+      in with pkgs; {        
+        packages.default = pagbar;
+
+        apps.default = flake-utils.lib.mkApp {
+          drv = pagbar;
+        };
+
+        devShells.default = mkShell rec {
+          buildInputs = [
+            (rustToolchain.override { extensions = [ "rust-src" "rust-analyzer" ]; })
+            bashInteractive
+            rust-analyzer
+          ]
+          ++ commonArgs.buildInputs;
+
+          nativeBuildInputs = commonArgs.nativeBuildInputs;          
+
           LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
         };
-      });
+      }
+    );
 }

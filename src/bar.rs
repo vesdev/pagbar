@@ -1,22 +1,20 @@
-use std::sync::Arc;
-
 use egui::{Color32, Context, Ui};
 use serde::{de::Visitor, Deserialize, Serialize};
 mod backend;
 
-pub fn run(protocol: Protocol, options: Vec<BarOption>, bar_factory: fn() -> Box<dyn Bar>) {
+pub fn run(protocol: Protocol, options: Vec<BarConfig>, bar_factory: fn() -> Box<dyn Bar>) {
     match protocol {
         Protocol::X11 => backend::x11::run(options, bar_factory),
     }
 }
 
 pub trait Bar {
-    fn first(&mut self, options: &BarOption, ctx: &egui::Context, ui: &mut Ui);
-    fn middle(&mut self, options: &BarOption, ctx: &egui::Context, ui: &mut Ui);
-    fn last(&mut self, options: &BarOption, ctx: &egui::Context, ui: &mut Ui);
+    fn first(&mut self, options: &BarConfig, ctx: &egui::Context, ui: &mut Ui);
+    fn middle(&mut self, options: &BarConfig, ctx: &egui::Context, ui: &mut Ui);
+    fn last(&mut self, options: &BarConfig, ctx: &egui::Context, ui: &mut Ui);
 }
 
-fn display_bar(bar: &mut Box<dyn Bar>, ctx: &Context, options: &BarOption) {
+fn display_bar(bar: &mut Box<dyn Bar>, ctx: &Context, options: &BarConfig) {
     let visuals: egui::Visuals = options.clone().into();
     ctx.set_visuals(visuals);
 
@@ -121,7 +119,7 @@ impl<'de> Visitor<'de> for ColorVisitor {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct BarOption {
+pub struct BarConfig {
     pub monitor: usize,
     pub title: String,
     pub position: Position,
@@ -131,7 +129,7 @@ pub struct BarOption {
     pub text_secondary: Color,
 }
 
-impl Default for BarOption {
+impl Default for BarConfig {
     fn default() -> Self {
         Self {
             monitor: 0,
@@ -153,8 +151,8 @@ impl Default for BarOption {
     }
 }
 
-impl From<BarOption> for egui::Visuals {
-    fn from(value: BarOption) -> Self {
+impl From<BarConfig> for egui::Visuals {
+    fn from(value: BarConfig) -> Self {
         egui::Visuals {
             dark_mode: false,
             extreme_bg_color: egui::Color32::from_rgb(

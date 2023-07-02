@@ -1,7 +1,7 @@
 use std::time::Duration;
 use systemstat::Platform;
 
-use bar::{Bar, BarOption, Position};
+use bar::{Bar, BarConfig, Position};
 
 use clap::Parser;
 use egui::{RichText, Ui};
@@ -44,7 +44,7 @@ impl Default for PagBar {
 }
 
 impl Bar for PagBar {
-    fn last(&mut self, options: &BarOption, _ctx: &egui::Context, ui: &mut Ui) {
+    fn last(&mut self, options: &BarConfig, _ctx: &egui::Context, ui: &mut Ui) {
         let stats = |ui: &mut Ui| {
             let memory = match self.sys.memory() {
                 Ok(mem) => (1. - mem.free.as_u64() as f64 / mem.total.as_u64() as f64) * 100.,
@@ -74,20 +74,20 @@ impl Bar for PagBar {
         }
     }
 
-    fn first(&mut self, _options: &BarOption, _ctx: &egui::Context, _ui: &mut Ui) {}
+    fn first(&mut self, _cfg: &BarConfig, _ctx: &egui::Context, _ui: &mut Ui) {}
 
-    fn middle(&mut self, options: &BarOption, ctx: &egui::Context, ui: &mut Ui) {
+    fn middle(&mut self, cfg: &BarConfig, ctx: &egui::Context, ui: &mut Ui) {
         ui.centered_and_justified(|ui| {
             let date = chrono::Local::now();
             ctx.request_repaint_after(Duration::from_secs(1));
 
-            let date = if let Position::Bottom | Position::Top = options.position {
+            let date = if let Position::Bottom | Position::Top = cfg.position {
                 date.format("%H:%M:%S").to_string()
             } else {
                 date.format("%H\n:%M:\n%S").to_string()
             };
 
-            ui.heading(RichText::new(date).size(25.).color(options.text));
+            ui.heading(RichText::new(date).size(25.).color(cfg.text));
         });
     }
 }

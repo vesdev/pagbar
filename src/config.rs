@@ -24,7 +24,7 @@ pub struct ConfigBar {
     pub size: u16,
 }
 
-pub fn get_options(path: Option<PathBuf>) -> Vec<BarOption> {
+pub fn get_options(path: Option<PathBuf>) -> Vec<BarConfig> {
     let mut result = Vec::new();
     if let Some(config_path) = path {
         let config = toml::from_str::<Config>(
@@ -33,7 +33,7 @@ pub fn get_options(path: Option<PathBuf>) -> Vec<BarOption> {
         .unwrap();
 
         for (_, bar) in config.bar {
-            result.push(bar::BarOption {
+            result.push(bar::BarConfig {
                 monitor: bar.monitor,
                 title: config.title.clone().unwrap_or("pagbar".into()),
                 position: bar.position,
@@ -55,7 +55,7 @@ pub fn get_options(path: Option<PathBuf>) -> Vec<BarOption> {
             });
         }
     } else {
-        result.push(bar::BarOption::default());
+        result.push(bar::BarConfig::default());
     }
 
     result

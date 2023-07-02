@@ -8,12 +8,13 @@ monitor = 0
 position = "top"
 size = 60
 
-# UNIMPLEMENTED
-# [bar.side]
-# monitor = 0
-# position = "right"
+# multi-bar
+# [bar.second]
+# monitor = 1
+# position = "top"
 # size = 60
 
+# UNIMPLEMENTED
 # modules
 # [module.disk]
 # panel = "last"

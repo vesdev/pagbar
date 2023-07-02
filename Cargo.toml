@@ -4,23 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-glutin-winit = { version = "0.3.0", default_features = false, features = [
-    "glx",
-    "egl",
-] }
-chrono = "0.4.26"
 egui = "0.22.0"
 egui-winit = { version = "0.22.0", default_features = false }
-egui_glow = { version = "0.22.0", features = ["winit"] }
-glow = "0.12.2"
-glutin = { version = "0.30.8", default_features = false }
-log = "0.4.18"
-raw-window-handle = "0.5.2"
-# sysinfo = "0.29.2"
+egui-wgpu = { version = "0.22.0", features = ["winit"] }
+wgpu = "0.16.1"
+
 thiserror = "1.0.40"
 clap = { version = "4.3.3", features = ["derive"] }
-toml = "0.7.4"
 serde = { version = "1.0.164", features = ["derive"] }
+toml = "0.7.4"
 xdg = "2.5.0"
 systemstat = "0.2.3"
+chrono = "0.4.26"
+pollster = "0.3.0"
 env_logger = "0.10.0"
