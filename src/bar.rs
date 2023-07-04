@@ -1,53 +1,15 @@
-use egui::{Color32, Context, Ui};
+use std::path::PathBuf;
+
+use egui::Color32;
 use serde::{de::Visitor, Deserialize, Serialize};
+
+use crate::layout::Layout;
 mod backend;
+mod user_config;
 
-pub fn run(protocol: Protocol, options: Vec<BarConfig>, bar_factory: fn() -> Box<dyn Bar>) {
+pub fn run(protocol: Protocol, config: PagbarConfig) {
     match protocol {
-        Protocol::X11 => backend::x11::run(options, bar_factory),
-    }
-}
-
-pub trait Bar {
-    fn first(&mut self, options: &BarConfig, ctx: &egui::Context, ui: &mut Ui);
-    fn middle(&mut self, options: &BarConfig, ctx: &egui::Context, ui: &mut Ui);
-    fn last(&mut self, options: &BarConfig, ctx: &egui::Context, ui: &mut Ui);
-}
-
-fn display_bar(bar: &mut Box<dyn Bar>, ctx: &Context, options: &BarConfig) {
-    let visuals: egui::Visuals = options.clone().into();
-    ctx.set_visuals(visuals);
-
-    // NOTE:
-    // usually central panel would be added after
-    // side panels, but since we want it to be centered
-    // regardless of side panel size its added before
-    egui::CentralPanel::default().show(ctx, |ui| bar.middle(options, ctx, ui));
-
-    if matches!(&options.position, Position::Bottom | Position::Top) {
-        egui::SidePanel::left("first")
-            .resizable(false)
-            .min_width(0.)
-            .show_separator_line(false)
-            .show(ctx, |ui| bar.first(options, ctx, ui));
-
-        egui::SidePanel::right("last")
-            .resizable(false)
-            .min_width(0.)
-            .show_separator_line(false)
-            .show(ctx, |ui| bar.last(options, ctx, ui));
-    } else {
-        egui::TopBottomPanel::top("first")
-            .resizable(false)
-            .min_height(0.)
-            .show_separator_line(false)
-            .show(ctx, |ui| bar.first(options, ctx, ui));
-
-        egui::TopBottomPanel::bottom("last")
-            .resizable(false)
-            .min_height(0.)
-            .show_separator_line(false)
-            .show(ctx, |ui| bar.last(options, ctx, ui));
+        Protocol::X11 => backend::x11::run(config),
     }
 }
 
@@ -118,8 +80,7 @@ impl<'de> Visitor<'de> for ColorVisitor {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct BarConfig {
+pub struct Bar {
     pub monitor: usize,
     pub title: String,
     pub position: Position,
@@ -129,30 +90,45 @@ pub struct BarConfig {
     pub text_secondary: Color,
 }
 
-impl Default for BarConfig {
-    fn default() -> Self {
-        Self {
-            monitor: 0,
-            title: "pagbar".to_string(),
-            position: Position::Bottom,
-            size: 100,
-            background: Color { r: 0, g: 0, b: 0 },
-            text: Color {
-                r: 255,
-                g: 255,
-                b: 255,
-            },
-            text_secondary: Color {
-                r: 150,
-                g: 150,
-                b: 150,
-            },
-        }
-    }
-}
+type PagbarConfig = Vec<(Bar, Box<dyn Layout>)>;
 
-impl From<BarConfig> for egui::Visuals {
-    fn from(value: BarConfig) -> Self {
+pub fn from_path(path: PathBuf, layout_factory: fn() -> Box<dyn Layout>) -> PagbarConfig {
+    let mut result = Vec::new();
+    let config = toml::from_str::<user_config::UserConfig>(
+        &std::fs::read_to_string(path.clone())
+            .expect(format!("Config file not found! {:?}", path).as_str()),
+    )
+    .unwrap();
+
+    for (_, bar) in config.bar {
+        result.push((
+            Bar {
+                monitor: bar.monitor,
+                title: config.title.clone().unwrap_or("pagbar".into()),
+                position: bar.position,
+                size: bar.size,
+                background: config
+                    .colors
+                    .background
+                    .unwrap_or(Color { r: 0, g: 0, b: 0 }),
+                text: config.colors.text.unwrap_or(Color {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                }),
+                text_secondary: config.colors.text_secondary.unwrap_or(Color {
+                    r: 150,
+                    g: 150,
+                    b: 150,
+                }),
+            },
+            layout_factory(),
+        ))
+    }
+    result
+}
+impl From<&Bar> for egui::Visuals {
+    fn from(value: &Bar) -> Self {
         egui::Visuals {
             dark_mode: false,
             extreme_bg_color: egui::Color32::from_rgb(

@@ -47,6 +47,7 @@
 
           nativeBuildInputs = [
             pkg-config
+            openssl
           ];
         };
                   

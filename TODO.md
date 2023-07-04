@@ -6,7 +6,7 @@
         - [ ] util panel section
 
 - [x] flip panels for vertical bar
-- [ ] multi bar support
+- [x] multi bar support
 
 util:
 - [x] clock
@@ -16,6 +16,7 @@ util:
 
 bug:
 - [x] inconsistency with phyiscal/logical monitor size
+- [ ] round cpu temp
 
 other:
 - [ ] look into plugins

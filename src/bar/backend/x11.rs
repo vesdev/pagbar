@@ -8,7 +8,10 @@ use std::{
     },
 };
 
-use crate::bar::{self, Bar, BarConfig, Position};
+use crate::{
+    bar::{self, Bar, PagbarConfig, Position},
+    layout::Layout,
+};
 use egui_winit::winit::{
     self,
     event::WindowEvent,
@@ -23,13 +26,13 @@ enum UserEvent {
     RequestRedraw(WindowId),
 }
 
-pub fn run(config: Vec<BarConfig>, bar_factory: fn() -> Box<dyn Bar>) {
+pub fn run(config: PagbarConfig) {
     // workaround for winit scaling bug
     std::env::set_var("WINIT_X11_SCALE_FACTOR", "1");
 
     let event_loop = winit::event_loop::EventLoopBuilder::with_user_event().build();
     let repaint_signal = RepaintSignal(Arc::new(Mutex::new(event_loop.create_proxy())));
-    let mut bars = create_bars(&event_loop, repaint_signal, config, bar_factory);
+    let mut bars = create_bars(&event_loop, repaint_signal, config);
     let mut window_map = HashMap::<WindowId, BarWindowId>::new();
 
     event_loop.run(move |event, event_loop, control_flow| match event {
@@ -79,26 +82,19 @@ pub fn run(config: Vec<BarConfig>, bar_factory: fn() -> Box<dyn Bar>) {
     });
 }
 
-fn create_bars(
+fn create_bars<'a>(
     event_loop: &EventLoop<UserEvent>,
     repaint_signal: RepaintSignal,
-    config: Vec<BarConfig>,
-    bar_factory: fn() -> Box<dyn Bar>,
+    config: PagbarConfig,
 ) -> HashMap<BarWindowId, BarWindow> {
     let mut bars = HashMap::new();
 
-    for cfg in config {
+    for (bar, layout) in config {
         let monitor = event_loop
             .available_monitors()
-            .nth(cfg.monitor)
+            .nth(bar.monitor)
             .unwrap_or_else(|| panic!("No monitors found"));
-        let bar_window = BarWindow::new(
-            &event_loop,
-            repaint_signal.clone(),
-            monitor,
-            cfg,
-            bar_factory(),
-        );
+        let bar_window = BarWindow::new(&event_loop, repaint_signal.clone(), monitor, bar, layout);
 
         bars.insert(bar_window.id, bar_window);
     }
@@ -133,8 +129,8 @@ struct BarWindow {
     state: egui_winit::State,
     window: Option<winit::window::Window>,
     repaint_signal: RepaintSignal,
-    bar: Box<dyn Bar>,
-    cfg: BarConfig,
+    bar: Bar,
+    layout: Box<dyn Layout>,
     monitor: MonitorHandle,
 }
 
@@ -143,8 +139,8 @@ impl BarWindow {
         event_loop: &EventLoop<UserEvent>,
         repaint_signal: RepaintSignal,
         monitor: MonitorHandle,
-        cfg: BarConfig,
-        bar: Box<dyn Bar>,
+        bar: Bar,
+        layout: Box<dyn Layout>,
     ) -> Self {
         static ID: AtomicU64 = AtomicU64::new(0);
         let id = BarWindowId(ID.fetch_add(1, Ordering::SeqCst));
@@ -152,7 +148,7 @@ impl BarWindow {
         let ctx = egui::Context::default();
         let state = egui_winit::State::new(&event_loop);
 
-        let mut config = egui_wgpu::WgpuConfiguration {
+        let config = egui_wgpu::WgpuConfiguration {
             supported_backends: wgpu::Backends::PRIMARY,
             ..Default::default()
         };
@@ -167,14 +163,14 @@ impl BarWindow {
             window: None,
             repaint_signal,
             bar,
-            cfg,
+            layout,
             monitor,
         }
     }
 
     fn create_window(&mut self, event_loop: &EventLoopWindowTarget<UserEvent>) -> Window {
         let (x, y, w, h) = self.position();
-        let window = window_builder(x, y, w, h, self.cfg.title.clone())
+        let window = window_builder(x, y, w, h, self.bar.title.clone())
             .build(&event_loop)
             .unwrap();
 
@@ -225,7 +221,7 @@ impl BarWindow {
             let raw_input = self.state.take_egui_input(window);
 
             let output = self.ctx.run(raw_input, |ctx| {
-                bar::display_bar(&mut self.bar, ctx, &self.cfg);
+                self.layout.display(ctx, &self.bar);
             });
 
             self.state
@@ -294,30 +290,30 @@ impl BarWindow {
 
     fn position(&mut self) -> (i32, i32, u32, u32) {
         let monitor = &self.monitor;
-        match self.cfg.position {
+        match self.bar.position {
             Position::Left => (
                 monitor.position().x,
                 monitor.position().y,
-                self.cfg.size as u32,
+                self.bar.size as u32,
                 monitor.size().height,
             ),
             Position::Right => (
-                monitor.position().x + monitor.size().width as i32 - self.cfg.size as i32,
+                monitor.position().x + monitor.size().width as i32 - self.bar.size as i32,
                 monitor.position().y,
-                self.cfg.size as u32,
+                self.bar.size as u32,
                 monitor.size().height,
             ),
             Position::Top => (
                 monitor.position().x,
                 monitor.position().y,
                 monitor.size().width,
-                self.cfg.size as u32,
+                self.bar.size as u32,
             ),
             Position::Bottom => (
                 monitor.position().x,
-                monitor.position().y + monitor.size().height as i32 - self.cfg.size as i32,
+                monitor.position().y + monitor.size().height as i32 - self.bar.size as i32,
                 monitor.size().width,
-                self.cfg.size as u32,
+                self.bar.size as u32,
             ),
         }
     }

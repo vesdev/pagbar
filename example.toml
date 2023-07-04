@@ -5,7 +5,7 @@ text-secondary = "#888888"
 
 [bar.main]
 monitor = 0
-position = "top"
+position = "bottom"
 size = 60
 
 # multi-bar
