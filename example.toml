@@ -5,45 +5,18 @@ text-secondary = "#888888"
 
 [bar.main]
 monitor = 0
-position = "bottom"
+position = "left"
+size = 220
+layout = { _ = 1, clock = 2, system = 1 }
+
+[bar.second]
+monitor = 1
+position = "top"
 size = 60
+layout = { clock = 1 }
 
-# [bar.main.layout]
-# start = { weight: 1 }
-# middle = { weight: 2, widgets: "clock" }
-# end = { weight: 1, widgets: "disk ram cpu" }
+[panels]
+_ = ["clock"]
+clock = ["clock"]
+system = ["disk", "ram", "cpu"]
 
-
-# multi-bar
-# [bar.second]
-# monitor = 1
-# position = "top"
-# size = 60
-
-# UNIMPLEMENTED
-# modules
-# [module.disk]
-# panel = "last"
-# format-prefix = "/ "
-# color-prefix = "text"
-# format = "{}%"
-# color = "text-secondary"
-
-# [module.ram]
-# panel = "last"
-# format-prefix = "ram "
-# color-prefix = "text"
-# format = "{}%"
-# color = "text-secondary"
-
-# [module.cpu]
-# panel = "last"
-# format-prefix = "cpu "
-# color-prefix = "text"
-# format = "{}°C"
-# color = "text-secondary"
-
-# [module.clock]
-# panel = "middle"
-# format = "%H\n:%M:\n%S"
-# color = "text"

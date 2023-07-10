@@ -11,9 +11,10 @@ wgpu = { version = "0.16.1", default-features = false}
 
 clap = { version = "4.3.3", features = ["std", "derive"], default-features = false }
 serde = { version = "1.0.164", features = ["derive"], default-features = false }
-toml = { features = ["parse"], default-features = false, version = "0.7.4" }
+toml = { features = ["parse", "preserve_order"], default-features = false, version = "0.7.4" }
 xdg = "2.5.0"
 systemstat = "0.2.3"
 chrono = { features = ["clock"], default-features = false, version = "0.4.26" }
 pollster = "0.3.0"
-env_logger = { default-features = false, version = "0.10.0" }
+env_logger = "0.10.0"
+indexmap = { version = "2.0.0", features = ["serde"] }

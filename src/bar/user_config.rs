@@ -1,12 +1,14 @@
+use super::*;
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::*;
-use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UserConfig {
     pub title: Option<String>,
     pub colors: UserConfigColors,
     pub bar: HashMap<String, UserConfigBar>,
+    pub panels: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -21,4 +23,5 @@ pub struct UserConfigBar {
     pub monitor: usize,
     pub position: Position,
     pub size: u16,
+    pub layout: IndexMap<String, f32>,
 }

@@ -1,9 +1,14 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use egui::Color32;
+use indexmap::IndexMap;
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use self::{backend::BackendData, layout::Layout};
+use self::{
+    backend::BackendData,
+    layout::{Layout, Split},
+    widget::{Widget, WidgetSet},
+};
 
 mod backend;
 pub mod layout;
@@ -114,13 +119,32 @@ pub struct Config {
     pub text_secondary: Color,
 }
 
-pub fn from_path(path: PathBuf, layout_factory: impl Fn() -> Layout) -> Vec<Bar> {
+pub fn from_path(path: PathBuf, widget_set: &mut WidgetSet) -> Vec<Bar> {
     let mut result = Vec::new();
     let config = toml::from_str::<user_config::UserConfig>(
         &std::fs::read_to_string(path.clone())
             .expect(format!("Config file not found! {:?}", path).as_str()),
     )
     .unwrap();
+
+    let mut layout_factory =
+        |layout: IndexMap<String, f32>, panels: &HashMap<String, Vec<String>>| -> Layout {
+            let mut result = Layout::default();
+            for (panel, weight) in layout {
+                let mut split = Split::new(weight);
+
+                if let Some(panel) = panels.get(&panel) {
+                    for widget in panel {
+                        if let Some(widget) = widget_set.create_widget(widget) {
+                            split.widget(widget);
+                        }
+                    }
+                }
+
+                result.split(split);
+            }
+            result
+        };
 
     for (_, bar) in config.bar {
         result.push(Bar {
@@ -144,7 +168,7 @@ pub fn from_path(path: PathBuf, layout_factory: impl Fn() -> Layout) -> Vec<Bar>
                     b: 150,
                 }),
             },
-            layout: layout_factory(),
+            layout: layout_factory(bar.layout, &config.panels),
         })
     }
     result
