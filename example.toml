@@ -8,6 +8,12 @@ monitor = 0
 position = "bottom"
 size = 60
 
+# [bar.main.layout]
+# start = { weight: 1 }
+# middle = { weight: 2, widgets: "clock" }
+# end = { weight: 1, widgets: "disk ram cpu" }
+
+
 # multi-bar
 # [bar.second]
 # monitor = 1

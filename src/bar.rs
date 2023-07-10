@@ -3,13 +3,16 @@ use std::path::PathBuf;
 use egui::Color32;
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use crate::layout::Layout;
-mod backend;
-mod user_config;
+use self::{backend::BackendData, layout::Layout};
 
-pub fn run(protocol: Protocol, config: PagbarConfig) {
+mod backend;
+pub mod layout;
+mod user_config;
+pub mod widget;
+
+pub fn run(protocol: Protocol, bars: Vec<Bar>) {
     match protocol {
-        Protocol::X11 => backend::x11::run(config),
+        Protocol::X11 => backend::x11::run(bars),
     }
 }
 
@@ -20,6 +23,22 @@ pub enum Position {
     Right,
     Top,
     Bottom,
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum Orientation {
+    Horizontal,
+    Vertical,
+}
+
+impl Position {
+    pub fn orientation(&self) -> Orientation {
+        if matches!(self, Position::Left | Position::Right) {
+            Orientation::Vertical
+        } else {
+            Orientation::Horizontal
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -81,6 +100,11 @@ impl<'de> Visitor<'de> for ColorVisitor {
 }
 
 pub struct Bar {
+    cfg: Config,
+    layout: Layout,
+}
+
+pub struct Config {
     pub monitor: usize,
     pub title: String,
     pub position: Position,
@@ -90,9 +114,7 @@ pub struct Bar {
     pub text_secondary: Color,
 }
 
-type PagbarConfig = Vec<(Bar, Box<dyn Layout>)>;
-
-pub fn from_path(path: PathBuf, layout_factory: fn() -> Box<dyn Layout>) -> PagbarConfig {
+pub fn from_path(path: PathBuf, layout_factory: impl Fn() -> Layout) -> Vec<Bar> {
     let mut result = Vec::new();
     let config = toml::from_str::<user_config::UserConfig>(
         &std::fs::read_to_string(path.clone())
@@ -101,8 +123,8 @@ pub fn from_path(path: PathBuf, layout_factory: fn() -> Box<dyn Layout>) -> Pagb
     .unwrap();
 
     for (_, bar) in config.bar {
-        result.push((
-            Bar {
+        result.push(Bar {
+            cfg: Config {
                 monitor: bar.monitor,
                 title: config.title.clone().unwrap_or("pagbar".into()),
                 position: bar.position,
@@ -122,13 +144,13 @@ pub fn from_path(path: PathBuf, layout_factory: fn() -> Box<dyn Layout>) -> Pagb
                     b: 150,
                 }),
             },
-            layout_factory(),
-        ))
+            layout: layout_factory(),
+        })
     }
     result
 }
-impl From<&Bar> for egui::Visuals {
-    fn from(value: &Bar) -> Self {
+impl From<&Config> for egui::Visuals {
+    fn from(value: &Config) -> Self {
         egui::Visuals {
             dark_mode: false,
             extreme_bg_color: egui::Color32::from_rgb(
